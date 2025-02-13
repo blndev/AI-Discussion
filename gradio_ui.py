@@ -12,8 +12,9 @@ class GradioUI:
     """
     Gradio-based user interface for the AI Discussion system.
     """
-    def __init__(self):
+    def __init__(self, model_config: dict):
         logger.info("Initializing Gradio UI")
+        self.model_config = model_config
         self.discussion = None  # Will be initialized with user-selected max_rounds
         self.is_running = False
         self.current_history = []
@@ -73,7 +74,7 @@ class GradioUI:
             return
 
         # Initialize discussion with user-selected max_rounds
-        self.discussion = AIDiscussion(max_rounds=max_rounds)
+        self.discussion = AIDiscussion(max_rounds=max_rounds, model_config=self.model_config)
         
         self.is_running = True
         self.current_history = []

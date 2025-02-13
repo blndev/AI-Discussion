@@ -1,10 +1,40 @@
+import json
 from langchain_ollama import ChatOllama
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional, Callable, Literal
+from langchain.tools import tool
 import time
 import re
 import logging
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+class ModeratorTools:
+    """Tools for the moderator to manage the discussion."""
+    
+    def __init__(self):
+        logger.info("Moderator initialized")
+
+    #TODO: Moderator Tools should contain teh moderator prompts as they are special to other actors
+
+    @tool("prepare_next_actor")
+    def prepare_next_actor(
+        actor: str,
+        reason: str
+    ) -> str:
+        """
+        Prepare the choosen next actor and check that the actor is ready.
+        
+        Args:
+            actor: The next actor to speak (questioner/expert1/expert2/validator/done)
+            reason: Brief explanation for why this actor was chosen and what they should focus on
+            
+        Returns:
+            The selected actor's identifier if he is ready to continue
+        """
+        logger.info(f"Prepare next Actor: {actor} becasue of: {reason}")
+        #self.last_reason = reason
+        return {"actor": actor, "reason": reason, "status": "ready"}
 
 class Actor:
     """
@@ -13,12 +43,19 @@ class Actor:
     Args:
         name (str): The name of the actor
         role (str): The role description of the actor
-        model_name (str): The name of the Ollama model to use (default: "playground")
+        model_config (dict): Configuration for the LLM model
     """
-    def __init__(self, name: str, role: str, model_name: str = "playground"):
+    def __init__(self, name: str, role: str, model_config: dict):
         self.name = name
         self.role = role
-        self.llm = ChatOllama(model=model_name)
+        self.llm = ChatOllama(
+            model=model_config["model"],
+            temperature=model_config["model_params"]["temperature"],
+            top_p=model_config["model_params"]["top_p"]
+        )
+        if name == "Moderator":
+            self.tools = ModeratorTools()
+            self.llm = self.llm.bind_tools([self.tools.prepare_next_actor])
         self.context = []
 
     def get_prompt(self, message: str) -> str:
@@ -59,8 +96,7 @@ class AIDiscussion:
     """
     Manages an AI-driven discussion between multiple actors.
     """
-    def __init__(self, max_rounds: int = 10):
-        logger.info(f"Initializing AI Discussion with max_rounds={max_rounds}")
+    def __init__(self, max_rounds: int = 10, model_config: dict = None):
         """
         Initialize the AI Discussion.
         
@@ -68,14 +104,16 @@ class AIDiscussion:
             max_rounds (int): Maximum number of discussion rounds. Lower values (5-10) 
                             result in concise discussions, while higher values (15-20) 
                             allow for more detailed exploration.
+            model_config (dict): Configuration for the LLM model
         """
+        logger.info(f"Initializing AI Discussion with max_rounds={max_rounds}")
         self.stop_flag = False
         self.actors = {
-            'questioner': Actor('Questioner', 'curious individual who asks insightful questions about the topic'),
-            'expert1': Actor('Expert 1', 'knowledgeable expert who provides detailed answers'),
-            'expert2': Actor('Expert 2', 'expert who enhances or optimizes Expert 1\'s answers'),
-            'validator': Actor('Validator', 'critical thinker who validates questions and answers'),
-            'moderator': Actor('Moderator', 'discussion leader who manages the conversation flow')
+            'questioner': Actor('Questioner', 'curious individual who asks insightful questions about the topic', model_config),
+            'expert1': Actor('Expert 1', 'knowledgeable expert who provides detailed answers', model_config),
+            'expert2': Actor('Expert 2', 'expert who enhances or optimizes Expert 1\'s answers', model_config),
+            'validator': Actor('Validator', 'critical thinker who validates questions and answers', model_config),
+            'moderator': Actor('Moderator', 'discussion leader who manages the conversation flow', model_config)
         }
         self.discussion_history = []
         self.max_rounds = max_rounds
@@ -98,28 +136,6 @@ class AIDiscussion:
         for actor in self.actors.values():
             actor.context = self.discussion_history
 
-    def extract_next_actor(self, mod_decision: str) -> Optional[str]:
-        """
-        Extracts the next actor from the moderator's decision.
-        
-        Args:
-            mod_decision (str): The moderator's decision text
-            
-        Returns:
-            Optional[str]: The name of the next actor or None if not found
-        """
-        # First try to find a direct NEXT: statement
-        next_match = re.search(r'NEXT:\s*(questioner|expert1|expert2|validator|DONE)', mod_decision, re.IGNORECASE)
-        if next_match:
-            return next_match.group(1).lower()
-
-        # If no NEXT: statement, look for any actor mention
-        for actor in ['questioner', 'expert1', 'expert2', 'validator']:
-            if actor in mod_decision.lower():
-                return actor
-        
-        return None
-    
     def stop_discussion(self):
         """Stops the current discussion."""
         self.stop_flag = True
@@ -148,7 +164,7 @@ class AIDiscussion:
             logger.info(f"Starting round {rounds}/{self.max_rounds}")
 
             # Determine if this is the last round
-            is_last_round = rounds == self.max_rounds - 1
+            is_last_round = rounds == self.max_rounds - 2
             is_brief = self.max_rounds <= 10
 
             # Moderator decides next action
@@ -160,33 +176,65 @@ class AIDiscussion:
             3. If the discussion feels complete, choose DONE
             """ if is_last_round else ""
 
-            mod_prompt = f"""Based on the discussion so far about '{topic}', decide who should speak next.
+            mod_prompt = f"""Based on the discussion so far about '{topic}', you need to:
+            1. Choose who should speak next from: questioner, expert1, expert2, validator, or done
+            2. Provide a clear reason for your choice and what they should focus on
+            3. Prepare the selected actor 
+
             Discussion style: {style_guide}
             {last_round_guide}
-            Your response must start with one of these:
-            NEXT: questioner
-            NEXT: expert1
-            NEXT: expert2
-            NEXT: validator
-            NEXT: DONE
 
             Do not choose the last speaker again.
-            After stating who should speak next, briefly explain why in one sentence.
-            Example: "NEXT: questioner
-            We need more specific questions about the topic."
+            Use the prepare_next_actor tool to make and explain your selection.
             """
-            mod_decision = self.actors['moderator'].respond(mod_prompt)
-            if callback:
-                callback('Moderator', mod_decision)
             
-            next_actor = self.extract_next_actor(str(mod_decision))
-            if next_actor == "done" or not next_actor:
-                logger.info("Moderator decided to end discussion")
-                if callback:
-                    callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
-                break
+            try:
+                #TODO invoke should be encapsulated by Actor class, that can tehn include tool calls as well
+                #TODO: moderator should inherit from actor
+                # Get moderator's decision using tool
+                mod_response = self.actors['moderator'].llm.invoke(mod_prompt)
+                next_actor = ""
+                reason = ""
 
-            logger.info(f"Moderator selected next actor: {next_actor}")
+                for tool_call in mod_response.tool_calls:
+                        selected_tool = {
+                            "prepare_next_actor": self.actors['moderator'].tools.prepare_next_actor, 
+                            "other_tool": self.actors['moderator'].tools.prepare_next_actor
+                            }[tool_call["name"].lower()]
+                        tool_msg = json.loads(selected_tool.invoke(tool_call).content)
+                        logger.debug("Tool was executed and result is", tool_msg)
+                        
+                        next_actor = tool_msg["actor"]
+                        reason = tool_msg["reason"]
+                        
+                if not next_actor or not reason:
+                    logger.warning("Missing actor or reason in tool response")
+                    if callback:
+                        callback('Moderator', "Unable to determine next action. Ending discussion.")
+                    break
+
+                # Show the reason to users
+                if callback:
+                    callback('Moderator', reason)
+                
+                if next_actor == "done":
+                    logger.info("Moderator decided to end discussion")
+                    if callback:
+                        callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
+                    break
+
+                # Validate actor exists
+                if next_actor not in self.actors:
+                    logger.warning(f"Invalid actor selected: {next_actor}")
+                    if callback:
+                        callback('Moderator', "Invalid selection made. Ending discussion.")
+                    break
+
+            except Exception as e:
+                logger.error(f"Error in moderator decision: {e}")
+                if callback:
+                    callback('Moderator', "An error occurred. Ending discussion.")
+                break
 
             # Get response from the chosen actor
             style_note = "Provide a brief, focused response." if is_brief else "Feel free to provide detailed explanations."

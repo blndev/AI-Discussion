@@ -1,5 +1,15 @@
 from gradio_ui import GradioUI
 import logging
+from typing import Dict
+
+# Global configuration
+CONFIG: Dict[str, str] = {
+    "model": "llama3.2",  # Base model to use
+    "model_params": {
+        "temperature": 0.7,
+        "top_p": 0.9
+    }
+}
 
 def setup_logging():
     """Configure logging for the application."""
@@ -17,9 +27,9 @@ def main():
     """Entry point of the application."""
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("Starting AI Discussion Panel")
+    logger.info(f"Starting AI Discussion Panel with model: {CONFIG['model']}")
     
-    ui = GradioUI()
+    ui = GradioUI(model_config=CONFIG)
     ui.launch()
 
 if __name__ == "__main__":
