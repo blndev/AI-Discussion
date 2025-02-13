@@ -3,13 +3,17 @@ from typing import List, Generator, Tuple, Dict
 import threading
 import queue
 import time
+import logging
 from aidiscussion import AIDiscussion
+
+logger = logging.getLogger(__name__)
 
 class GradioUI:
     """
     Gradio-based user interface for the AI Discussion system.
     """
     def __init__(self):
+        logger.info("Initializing Gradio UI")
         self.discussion = None  # Will be initialized with user-selected max_rounds
         self.is_running = False
         self.current_history = []
@@ -34,6 +38,7 @@ class GradioUI:
             Tuple[gr.Button, gr.Button]: Updated states for the start and stop buttons
         """
         if self.is_running:
+            logger.info("Stopping discussion")
             self.discussion.stop_discussion()
             self.is_running = False
             if self.discussion_thread:
@@ -78,6 +83,7 @@ class GradioUI:
         self.current_history.append({"role": "system", "content": f"{style_msg} mode selected ({max_rounds} rounds max)"})
         
         # Start discussion in a separate thread
+        logger.info("Starting discussion thread")
         self.discussion_thread = threading.Thread(target=self.run_discussion, args=(topic,))
         self.discussion_thread.start()
 
@@ -118,6 +124,7 @@ class GradioUI:
 
     def launch(self):
         """Launches the Gradio interface."""
+        logger.info("Launching Gradio interface")
         with gr.Blocks(title="AI Discussion Panel", theme=gr.themes.Soft()) as interface:
             gr.Markdown("""
             # AI Discussion Panel

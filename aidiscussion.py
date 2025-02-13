@@ -2,6 +2,9 @@ from langchain_ollama import ChatOllama
 from typing import List, Dict, Optional, Callable
 import time
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Actor:
     """
@@ -57,6 +60,7 @@ class AIDiscussion:
     Manages an AI-driven discussion between multiple actors.
     """
     def __init__(self, max_rounds: int = 10):
+        logger.info(f"Initializing AI Discussion with max_rounds={max_rounds}")
         """
         Initialize the AI Discussion.
         
@@ -119,6 +123,7 @@ class AIDiscussion:
     def stop_discussion(self):
         """Stops the current discussion."""
         self.stop_flag = True
+        logger.info("Discussion stopped by user")
 
     def start_discussion(self, topic: str, callback: Callable[[str, str], None] = None) -> None:
         """
@@ -131,7 +136,7 @@ class AIDiscussion:
         self.stop_flag = False
         self.discussion_history = []
         
-        # Initialize discussion
+        logger.info(f"Starting new discussion on topic: '{topic}' (max_rounds={self.max_rounds})")
         start_msg = f"Starting discussion on topic: {topic}"
         self.add_to_history('system', start_msg)
         if callback:
@@ -140,6 +145,7 @@ class AIDiscussion:
         rounds = 0
         while rounds < self.max_rounds and not self.stop_flag:
             rounds += 1
+            logger.info(f"Starting round {rounds}/{self.max_rounds}")
 
             # Determine if this is the last round
             is_last_round = rounds == self.max_rounds - 1
@@ -175,9 +181,12 @@ class AIDiscussion:
             
             next_actor = self.extract_next_actor(str(mod_decision))
             if next_actor == "done" or not next_actor:
+                logger.info("Moderator decided to end discussion")
                 if callback:
                     callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
                 break
+
+            logger.info(f"Moderator selected next actor: {next_actor}")
 
             # Get response from the chosen actor
             style_note = "Provide a brief, focused response." if is_brief else "Feel free to provide detailed explanations."
@@ -195,6 +204,7 @@ class AIDiscussion:
                     prompt = f"Validate the recent questions and answers about {topic}. Are they relevant and accurate? {style_note}"
             
             response = self.actors[next_actor].respond(prompt)
+            logger.debug(f"Got response from {next_actor} ({len(response)} chars)")
             if callback:
                 callback(self.actors[next_actor].name, response)
             self.add_to_history(next_actor, response)
