@@ -1,18 +1,10 @@
 import logging
 import json
 from app.ui import GradioUI
-import colorlog
+from app.log_config import setup_logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-# Reduce noise from third-party libraries
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
-logging.getLogger('gradio').setLevel(logging.WARNING)
-
+# Set up logging for the entire application
+setup_logging()
 logger = logging.getLogger(__name__)
 
 def load_config() -> dict:
