@@ -4,8 +4,9 @@ import sys
 import time
 import os
 from .discussion import AIDiscussion
+from .app import App
 
-class ConsoleUI:
+class ConsoleUI(App):
     """Console-based user interface for the AI Discussion system."""
     
     def __init__(self, model_config: dict):
@@ -15,6 +16,7 @@ class ConsoleUI:
         Args:
             model_config (dict): Configuration for the LLM model
         """
+        super().__init__(model_config)
         self.discussion = AIDiscussion(model_config=model_config)
         self.is_running = False
 
@@ -56,7 +58,7 @@ class ConsoleUI:
                 return True
         return False
 
-    def run(self):
+    def launch(self):
         """Runs the console interface."""
         print("Welcome to AI Discussion Panel (Console Version)!")
         print("\nAt any time during a discussion:")

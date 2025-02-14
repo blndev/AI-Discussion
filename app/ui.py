@@ -5,14 +5,16 @@ import queue
 import time
 import logging
 from .discussion import AIDiscussion
+from .app import App
 
 logger = logging.getLogger(__name__)
 
-class GradioUI:
+class GradioUI(App):
     """
     Gradio-based user interface for the AI Discussion system.
     """
     def __init__(self, model_config: dict):
+        super().__init__(model_config)
         logger.info("Initializing Gradio UI")
         self.model_config = model_config
         self.discussion = None  # Will be initialized with user-selected max_rounds

@@ -1,4 +1,6 @@
 from app.ui import GradioUI
+#from app.console import ConsoleUI
+
 import logging
 
 # Global configuration
@@ -29,6 +31,7 @@ def main():
     logger.info(f"Starting AI Discussion Panel with model: {CONFIG['model']}")
     
     ui = GradioUI(model_config=CONFIG)
+    #ui = ConsoleUI(model_config=CONFIG)
     ui.launch()
 
 if __name__ == "__main__":
