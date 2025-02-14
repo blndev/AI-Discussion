@@ -64,13 +64,16 @@ class Moderator(Actor):
         
         try:
             response = self.llm.invoke(prompt)
-            logger.debug(f"Decision from Moderator: {reason.content}")
+            logger.debug(f"Raw response from Moderator: {response.content}")
             try:
-                # Regular expression to find the JSON part
+                # Extract and parse JSON from response
+                # Uses regex to find JSON object even if surrounded by other text
                 json_match = re.search(r'{.*}', response.content, re.DOTALL)
-                if json_match:
-                    json_string = json_match.group(0)
+                if not json_match:
+                    raise ValueError("No JSON object found in response")
                     
+                json_string = json_match.group(0)
+                logger.debug(f"Extracted JSON: {json_string}")
                 result = json.loads(json_string)
                 next_actor = result.get("actor", "")
                 reason = result.get("reason", "")
@@ -86,12 +89,16 @@ class Moderator(Actor):
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse or validate LLM response: {e}")
                 # Get available actors excluding previous actor
-                if len(self.discussion.actors)>1:
+                # Handle actor selection based on number of available actors
+                if len(self.discussion.actors) > 1:
+                    # Multiple actors: exclude previous actor
                     available_actors = [
                         actor_id for actor_id in self.discussion.actors.keys() 
-                        if actor_id != self.previous_actor]
+                        if actor_id != self.previous_actor
+                    ]
                 else:
-                    available_actors = self.discussion.actors
+                    # Single actor: must reuse the same actor
+                    available_actors = list(self.discussion.actors.keys())
                 
                 if not available_actors:
                     return "done", "No available actors. Ending discussion."
