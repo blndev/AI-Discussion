@@ -10,7 +10,8 @@ class AIDiscussion:
     """
     Manages an AI-driven discussion between multiple actors.
     """
-    def __init__(self, max_rounds: int = 10, model_config: dict = None, custom_actors: Dict[str, bool] = None):
+    def __init__(self, max_rounds: int = 10, model_config: dict = None, 
+                 custom_actors: Dict[str, Dict[str, str]] = None):
         """
         Initialize the AI Discussion.
         
@@ -30,25 +31,47 @@ class AIDiscussion:
         # Initialize moderator
         self.moderator = Moderator(model_config, self)
 
-        # Define default actors
+        # Define default actor configurations
         default_actors = {
-            'questioner': ('Questioner', 'curious individual who asks insightful questions about the topic required for understanding details'),
-            'expert1': ('Expert 1', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'),
-            'expert2': ('Expert 2', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'),
-            'validator': ('Validator', 'critical thinker who validates questions and answers')
+            'questioner': {
+                'enabled': True,
+                'name': 'Questioner',
+                'role': 'curious individual who asks insightful questions about the topic required for understanding details'
+            },
+            'expert1': {
+                'enabled': True,
+                'name': 'Expert 1',
+                'role': 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'
+            },
+            'expert2': {
+                'enabled': True,
+                'name': 'Expert 2',
+                'role': 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'
+            },
+            'validator': {
+                'enabled': True,
+                'name': 'Validator',
+                'role': 'critical thinker who validates questions and answers'
+            }
         }
 
         # Initialize actors based on configuration
         self.actors = {}
         if custom_actors is None:
             # Use all default actors
-            for key, (name, desc) in default_actors.items():
-                self.actors[key] = Actor(name, desc, model_config, self)
+            for key, config in default_actors.items():
+                self.actors[key] = Actor(config['name'], config['role'], model_config, self)
         else:
-            # Use only enabled actors
-            for key, (name, desc) in default_actors.items():
-                if custom_actors.get(key, True):  # Enable by default if not specified
-                    self.actors[key] = Actor(name, desc, model_config, self)
+            # Use custom configuration
+            for key, config in default_actors.items():
+                actor_config = custom_actors.get(key, config)
+                if actor_config.get('enabled', True):
+                    self.actors[key] = Actor(
+                        actor_config.get('name', config['name']),
+                        actor_config.get('role', config['role']),
+                        model_config,
+                        self
+                    )
 
     def add_to_history(self, actor: str, message: str):
         """
@@ -110,7 +133,8 @@ class AIDiscussion:
             # Show the reason to users
             if callback and False: #currently deactivate the moderator output
                 callback(f'Moderator to {self.actors[next_actor].name if next_actor != "done" else "all"}', reason)
-            logger.info(f"Moderator has choosen {next_actor}: {reason}")
+            logger.info(f"Moderator has choosen {next_actor}: (reason {len(reason)} chars)")
+            logger.debug(f"Moderators reason: {reason}")
             
             if next_actor == "done":
                 logger.info("Moderator decided to end discussion")

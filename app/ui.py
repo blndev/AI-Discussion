@@ -62,10 +62,10 @@ class GradioUI(App):
     def start_new_discussion(
         self, topic: str, max_rounds: int, history: List[Dict[str, str]],
         custom_enabled: bool = False,
-        questioner: bool = True,
-        expert1: bool = True,
-        expert2: bool = True,
-        validator: bool = True
+        questioner_enabled: bool = True, questioner_name: str = "Questioner", questioner_role: str = "",
+        expert1_enabled: bool = True, expert1_name: str = "Expert 1", expert1_role: str = "",
+        expert2_enabled: bool = True, expert2_name: str = "Expert 2", expert2_role: str = "",
+        validator_enabled: bool = True, validator_name: str = "Validator", validator_role: str = ""
     ) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button, bool], None, None]:
         """
         Starts a new discussion on the given topic.
@@ -87,10 +87,26 @@ class GradioUI(App):
         custom_actors = None
         if custom_enabled:
             custom_actors = {
-                'questioner': questioner,
-                'expert1': expert1,
-                'expert2': expert2,
-                'validator': validator
+                'questioner': {
+                    'enabled': questioner_enabled,
+                    'name': questioner_name,
+                    'role': questioner_role
+                },
+                'expert1': {
+                    'enabled': expert1_enabled,
+                    'name': expert1_name,
+                    'role': expert1_role
+                },
+                'expert2': {
+                    'enabled': expert2_enabled,
+                    'name': expert2_name,
+                    'role': expert2_role
+                },
+                'validator': {
+                    'enabled': validator_enabled,
+                    'name': validator_name,
+                    'role': validator_role
+                }
             }
         
         self.discussion = AIDiscussion(
@@ -195,10 +211,45 @@ class GradioUI(App):
                         )
                     
                     with gr.Column(visible=False) as actor_options:
-                        questioner_enabled = gr.Checkbox(label="Questioner", value=True)
-                        expert1_enabled = gr.Checkbox(label="Expert 1", value=True)
-                        expert2_enabled = gr.Checkbox(label="Expert 2", value=True)
-                        validator_enabled = gr.Checkbox(label="Validator", value=True)
+                        with gr.Row():
+                            questioner_enabled = gr.Checkbox(label="Questioner", value=True)
+                            questioner_name = gr.Textbox(label="Name", value="Questioner", interactive=True)
+                            questioner_role = gr.Textbox(
+                                label="Role",
+                                value="curious individual who asks insightful questions about the topic",
+                                interactive=True,
+                                scale=2
+                            )
+                        
+                        with gr.Row():
+                            expert1_enabled = gr.Checkbox(label="Expert 1", value=True)
+                            expert1_name = gr.Textbox(label="Name", value="Expert 1", interactive=True)
+                            expert1_role = gr.Textbox(
+                                label="Role",
+                                value="knowledgeable expert who provides detailed insights and answers",
+                                interactive=True,
+                                scale=2
+                            )
+                        
+                        with gr.Row():
+                            expert2_enabled = gr.Checkbox(label="Expert 2", value=True)
+                            expert2_name = gr.Textbox(label="Name", value="Expert 2", interactive=True)
+                            expert2_role = gr.Textbox(
+                                label="Role",
+                                value="knowledgeable expert who provides detailed insights and answers",
+                                interactive=True,
+                                scale=2
+                            )
+                        
+                        with gr.Row():
+                            validator_enabled = gr.Checkbox(label="Validator", value=True)
+                            validator_name = gr.Textbox(label="Name", value="Validator", interactive=True)
+                            validator_role = gr.Textbox(
+                                label="Role",
+                                value="critical thinker who validates questions and answers",
+                                interactive=True,
+                                scale=2
+                            )
                     
                     def update_actors_visibility(enabled: bool):
                         """Update actor options visibility."""
@@ -217,8 +268,10 @@ class GradioUI(App):
             inputs = [
                 topic_input, max_rounds_slider, chatbot,
                 custom_actors_enabled,
-                questioner_enabled, expert1_enabled,
-                expert2_enabled, validator_enabled
+                questioner_enabled, questioner_name, questioner_role,
+                expert1_enabled, expert1_name, expert1_role,
+                expert2_enabled, expert2_name, expert2_role,
+                validator_enabled, validator_name, validator_role
             ]
             outputs = [chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)]
 
