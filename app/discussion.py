@@ -121,7 +121,7 @@ class AIDiscussion:
             # Use moderator's reason as the actor's initial prompt
             self.actors[next_actor].initial_prompt = reason
             response = self.actors[next_actor].respond(topic)
-            logger.debug(f"Got response from {next_actor} ({len(response)} chars)")
+            logger.info(f"Got response from {next_actor} ({len(response)} chars)")
             if callback:
                 callback(self.actors[next_actor].name, response)
             self.add_to_history(next_actor, response)

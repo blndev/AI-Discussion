@@ -32,7 +32,8 @@ def main():
         ui = GradioUI(model_config=config)
         ui.launch()
     except Exception as e:
-        logger.error(f"Failed to start application")
+        logger.error(f"Failed to start application {e}")
+        raise 
 
 if __name__ == "__main__":
     main()
