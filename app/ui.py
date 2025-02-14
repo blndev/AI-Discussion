@@ -65,7 +65,7 @@ class GradioUI(App):
         
         Args:
             topic (str): The topic to discuss
-            max_rounds (int): Maximum number of discussion rounds (5-20)
+            max_rounds (int): Maximum number of discussion rounds (5-100)
             history (List[Dict[str, str]]): Current chat history in messages format
             
         Yields:
@@ -132,22 +132,17 @@ class GradioUI(App):
         with gr.Blocks(title="AI Discussion Panel", theme=gr.themes.Soft()) as interface:
             gr.Markdown("""
             # AI Discussion Panel
-            Enter a topic and watch as our AI actors engage in an insightful discussion:
-            - 🤔 Questioner: Asks insightful questions
-            - 👨‍🔬 Expert 1: Provides detailed answers
-            - 👩‍🔬 Expert 2: Enhances or optimizes answers
-            - ✅ Validator: Ensures relevance and accuracy
-            - 👨‍💼 Moderator: Manages the conversation flow
+            Enter a topic and press Enter or click Start Discussion to begin an AI-powered conversation.
             """)
             
             with gr.Row():
                 max_rounds_slider = gr.Slider(
                     minimum=5,
-                    maximum=20,
-                    value=10,
+                    maximum=100,
+                    value=20,
                     step=5,
                     label="Discussion Length",
-                    info="Lower values (5-10) for brief discussions, higher values (15-20) for detailed exploration"
+                    info="Adjust the number of discussion rounds (5-100)"
                 )
             
             chatbot = gr.Chatbot(
@@ -165,6 +160,14 @@ class GradioUI(App):
                 )
                 submit_btn = gr.Button("Start Discussion", scale=1, variant="primary")
                 stop_btn = gr.Button("Stop Discussion", scale=1, variant="stop", interactive=False)
+
+            # Submit on Enter key or button click
+            topic_input.submit(
+                self.start_new_discussion,
+                inputs=[topic_input, max_rounds_slider, chatbot],
+                outputs=[chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)],
+                show_progress=True
+            )
 
             submit_btn.click(
                 self.start_new_discussion,
