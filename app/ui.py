@@ -152,8 +152,10 @@ class GradioUI(App):
         with gr.Blocks(title="AI Discussion Panel", theme=gr.themes.Soft()) as interface:
             gr.Markdown("# AI Discussion Panel")
             
-            with gr.Tabs():
-                with gr.Tab("Discussion"):
+            with gr.Tabs() as tabs:
+                # Discussion tab (index 0)
+                discussion_tab = gr.Tab("Discussion")
+                with discussion_tab:
                     gr.Markdown("Enter a topic and press Enter or click Start Discussion to begin an AI-powered conversation.")
                     
                     with gr.Row():
@@ -165,8 +167,26 @@ class GradioUI(App):
                             label="Discussion Length",
                             info="Adjust the number of discussion rounds (5-100)"
                         )
-                
-                with gr.Tab("Custom Actors"):
+                    
+                    chatbot = gr.Chatbot(
+                        label="Discussion",
+                        height=400,
+                        bubble_full_width=False,
+                        type="messages"
+                    )
+                    
+                    with gr.Row():
+                        topic_input = gr.Textbox(
+                            label="",
+                            placeholder="Type a topic for discussion...",
+                            scale=4
+                        )
+                        submit_btn = gr.Button("Start Discussion", scale=1, variant="primary")
+                        stop_btn = gr.Button("Stop Discussion", scale=1, variant="stop", interactive=False)
+
+                # Custom Actors tab (index 1)
+                actors_tab = gr.Tab("Custom Actors")
+                with actors_tab:
                     with gr.Row():
                         custom_actors_enabled = gr.Checkbox(
                             label="Enable Custom Actors",
@@ -180,29 +200,19 @@ class GradioUI(App):
                         expert2_enabled = gr.Checkbox(label="Expert 2", value=True)
                         validator_enabled = gr.Checkbox(label="Validator", value=True)
                     
+                    def update_actors_visibility(enabled: bool):
+                        """Update actor options visibility."""
+                        return gr.Column(visible=enabled)
+
                     custom_actors_enabled.change(
-                        lambda x: gr.Column(visible=x),
+                        update_actors_visibility,
                         inputs=[custom_actors_enabled],
                         outputs=[actor_options]
+                    ).then(
+                        lambda: 0,  # Switch to Discussion tab (index 0)
+                        outputs=tabs
                     )
-            
-            chatbot = gr.Chatbot(
-                label="Discussion",
-                height=400,
-                bubble_full_width=False,
-                type="messages"
-            )
-            
-            with gr.Row():
-                topic_input = gr.Textbox(
-                    label="",
-                    placeholder="Type a topic for discussion...",
-                    scale=4
-                )
-                submit_btn = gr.Button("Start Discussion", scale=1, variant="primary")
-                stop_btn = gr.Button("Stop Discussion", scale=1, variant="stop", interactive=False)
 
-            # Submit on Enter key or button click
             # Submit on Enter key or button click
             inputs = [
                 topic_input, max_rounds_slider, chatbot,
