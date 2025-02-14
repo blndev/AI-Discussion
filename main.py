@@ -1,9 +1,8 @@
-from gradio_ui import GradioUI
+from app.ui import GradioUI
 import logging
-from typing import Dict
 
 # Global configuration
-CONFIG: Dict[str, str] = {
+CONFIG = {
     "model": "llama3.2",  # Base model to use
     "model_params": {
         "temperature": 0.7,

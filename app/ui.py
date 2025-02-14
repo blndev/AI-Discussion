@@ -4,7 +4,7 @@ import threading
 import queue
 import time
 import logging
-from aidiscussion import AIDiscussion
+from .discussion import AIDiscussion
 
 logger = logging.getLogger(__name__)
 

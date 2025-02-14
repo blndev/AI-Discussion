@@ -1,26 +1,50 @@
-from main import AIDiscussion
 import threading
 import select
 import sys
 import time
 import os
+from .discussion import AIDiscussion
 
 class ConsoleUI:
-    def __init__(self):
-        self.discussion = AIDiscussion()
+    """Console-based user interface for the AI Discussion system."""
+    
+    def __init__(self, model_config: dict):
+        """
+        Initialize the console UI.
+        
+        Args:
+            model_config (dict): Configuration for the LLM model
+        """
+        self.discussion = AIDiscussion(model_config=model_config)
         self.is_running = False
 
     def message_callback(self, actor: str, message: str):
+        """
+        Callback function to handle new messages from the discussion.
+        
+        Args:
+            actor (str): The name of the actor who sent the message
+            message (str): The content of the message
+        """
         print(f"\n{actor}: {message}")
 
     def stop_discussion(self):
+        """Stops the current discussion."""
         if self.is_running:
             self.discussion.stop_discussion()
             self.is_running = False
             print("\nStopping discussion...")
 
     def check_input(self, timeout=0.1):
-        """Check for input with timeout, returns True if 'q' was pressed"""
+        """
+        Check for input with timeout.
+        
+        Args:
+            timeout (float): Time to wait for input
+            
+        Returns:
+            bool: True if 'q' was pressed
+        """
         if os.name == 'nt':  # Windows
             import msvcrt
             if msvcrt.kbhit():
@@ -33,6 +57,7 @@ class ConsoleUI:
         return False
 
     def run(self):
+        """Runs the console interface."""
         print("Welcome to AI Discussion Panel (Console Version)!")
         print("\nAt any time during a discussion:")
         if os.name == 'nt':  # Windows
@@ -66,7 +91,3 @@ class ConsoleUI:
             discussion_thread.join()
             self.is_running = False
             print("\nDiscussion finished!")
-
-if __name__ == "__main__":
-    console = ConsoleUI()
-    console.run()
