@@ -296,17 +296,17 @@ class AIDiscussion:
                     callback('Moderator', "Invalid selection made. Ending discussion.")
                 break
 
-            # Show the reason to users
-            if callback:
-                callback(f'Moderator to {self.actors[next_actor].name if next_actor != "done" else "all"}', reason)
-            logger.info(f"Moderator has choosen {next_actor}: {reason}")
-            
             if next_actor == "done":
                 logger.info("Moderator decided to end discussion")
                 if callback:
                     callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
                 break
 
+            # Show the reason to users
+            if callback and False: #currently don't show the moderator
+                callback(f'Moderator to {self.actors[next_actor].name if next_actor != "done" else "all"}', reason)
+            logger.info(f"Moderator has choosen {next_actor}: {reason}")
+            
             # Get response from the chosen actor
             prompt = self.moderator.get_actor_prompt(next_actor, topic, is_last_round, is_brief)
             response = self.actors[next_actor].respond(prompt)
@@ -314,3 +314,7 @@ class AIDiscussion:
             if callback:
                 callback(self.actors[next_actor].name, response)
             self.add_to_history(next_actor, response)
+
+        if callback:
+                time.sleep(0.3) #giving the System the chance to show all output before the thread is stopped
+                callback("system", "Discussion closed")
