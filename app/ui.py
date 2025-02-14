@@ -154,7 +154,7 @@ class GradioUI(App):
             
             with gr.Row():
                 topic_input = gr.Textbox(
-                    label="Enter Topic",
+                    show_label=False,
                     placeholder="Type a topic for discussion...",
                     scale=4
                 )
