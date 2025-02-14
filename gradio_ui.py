@@ -57,7 +57,7 @@ class GradioUI:
         self.discussion.start_discussion(topic, callback=self.message_callback)
         self.is_running = False
 
-    def start_new_discussion(self, topic: str, max_rounds: int, history: List[Dict[str, str]]) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button], None, None]:
+    def start_new_discussion(self, topic: str, max_rounds: int, history: List[Dict[str, str]]) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button, bool], None, None]:
         """
         Starts a new discussion on the given topic.
         
@@ -70,7 +70,8 @@ class GradioUI:
             Tuple[List[Dict[str, str]], gr.Button, gr.Button]: Updated chat history and button states
         """
         if not topic.strip():
-            yield [{"role": "system", "content": "Please enter a topic for discussion."}], gr.Button(interactive=True), gr.Button(interactive=False)
+            gr.Warning("Please enter a topic for discussion")
+            yield [{"role": "system", "content": "Please enter a topic for discussion."}], gr.Button(interactive=True), gr.Button(interactive=False), True
             return
 
         # Initialize discussion with user-selected max_rounds
@@ -90,7 +91,7 @@ class GradioUI:
 
         # Initial yield to show starting message and enable stop button
         self.current_history.append({"role": "system", "content": f"Starting discussion on topic: {topic}"})
-        yield self.current_history, gr.Button(interactive=False), gr.Button(interactive=True)
+        yield self.current_history, gr.Button(interactive=False), gr.Button(interactive=True), False
 
         # Keep yielding updates while discussion is running
         while self.is_running:
@@ -115,13 +116,13 @@ class GradioUI:
                         message = f"{emoji} {actor}: {message}"
                     
                     self.current_history.append({"role": role, "content": message})
-                    yield self.current_history, gr.Button(interactive=False), gr.Button(interactive=True)
+                    yield self.current_history, gr.Button(interactive=False), gr.Button(interactive=True), False
                 time.sleep(0.1)
             except queue.Empty:
                 continue
 
         # Final yield after discussion ends
-        yield self.current_history, gr.Button(interactive=True), gr.Button(interactive=False)
+        yield self.current_history, gr.Button(interactive=True), gr.Button(interactive=False), False
 
     def launch(self):
         """Launches the Gradio interface."""
@@ -166,12 +167,8 @@ class GradioUI:
             submit_btn.click(
                 self.start_new_discussion,
                 inputs=[topic_input, max_rounds_slider, chatbot],
-                outputs=[chatbot, submit_btn, stop_btn],
+                outputs=[chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)],
                 show_progress=True
-            ).success(
-                lambda: "",  # Clear input after submission
-                None,
-                topic_input
             )
 
             stop_btn.click(
