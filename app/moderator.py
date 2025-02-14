@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+import re
 from typing import Dict, Tuple, Literal
 from .actor import Actor
 
@@ -63,28 +64,41 @@ class Moderator(Actor):
         
         try:
             response = self.llm.invoke(prompt)
-            
+            logger.debug(f"Decision from Moderator: {reason.content}")
             try:
-                result = json.loads(response.content)
+                # Regular expression to find the JSON part
+                json_match = re.search(r'{.*}', response.content, re.DOTALL)
+                if json_match:
+                    json_string = json_match.group(0)
+                    
+                result = json.loads(json_string)
                 next_actor = result.get("actor", "")
                 reason = result.get("reason", "")
 
+                # Validate response format
                 if not next_actor or not reason:
                     raise ValueError("Missing actor or reason in response")
                 
+                # Check if selected actor is available
+                if next_actor != "done" and next_actor not in self.discussion.actors:
+                    raise ValueError(f"Selected actor {next_actor} is not available")
+                
             except (json.JSONDecodeError, ValueError) as e:
-                logger.warning(f"Failed to parse LLM response: {e}")
-                # Get available actors excluding previous actor and 'done'
-                available_actors = [
-                    actor_id for actor_id in self.discussion.actors.keys() 
-                    if actor_id != self.previous_actor and actor_id != "done"
-                ]
+                logger.warning(f"Failed to parse or validate LLM response: {e}")
+                # Get available actors excluding previous actor
+                if len(self.discussion.actors)>1:
+                    available_actors = [
+                        actor_id for actor_id in self.discussion.actors.keys() 
+                        if actor_id != self.previous_actor]
+                else:
+                    available_actors = self.discussion.actors
+                
                 if not available_actors:
                     return "done", "No available actors. Ending discussion."
                 
-                # Randomly select an actor as fallback
-                next_actor = random.choice(available_actors)
-                reason = f"Fallback selection due to response parsing error. Continuing discussion with {next_actor}."
+                # Randomly select an available actor as fallback
+                next_actor = random.choice(list(available_actors.keys()))
+                reason = f"Selected actor was not available. Continuing discussion with {next_actor}."
 
             # Save for next round
             self.previous_actor = next_actor
