@@ -1,6 +1,9 @@
-langchain
-langchain-community
-langchain-ollama
-langchain-core
-python-dotenv
-gradio
+# Core dependencies
+langchain-core>=0.3.35
+langchain-ollama>=0.2.3
+
+# UI
+gradio>=5.16.0
+
+# Logging
+colorlog>=6.9.0
