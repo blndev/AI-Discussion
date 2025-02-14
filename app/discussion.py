@@ -10,7 +10,7 @@ class AIDiscussion:
     """
     Manages an AI-driven discussion between multiple actors.
     """
-    def __init__(self, max_rounds: int = 10, model_config: dict = None):
+    def __init__(self, max_rounds: int = 10, model_config: dict = None, custom_actors: Dict[str, bool] = None):
         """
         Initialize the AI Discussion.
         
@@ -19,20 +19,36 @@ class AIDiscussion:
                             result in concise discussions, while higher values (15-20) 
                             allow for more detailed exploration.
             model_config (dict): Configuration for the LLM model
+            custom_actors (Dict[str, bool], optional): Dictionary of actor names and their enabled status.
+                                                    If None, all default actors are enabled.
         """
         logger.info(f"Initializing AI Discussion with max_rounds={max_rounds}")
         self.stop_flag = False
         self.discussion_history = []
         self.max_rounds = max_rounds
 
-        # Initialize actors with discussion reference
+        # Initialize moderator
         self.moderator = Moderator(model_config, self)
-        self.actors = {
-            'questioner': Actor('Questioner', 'curious individual who asks insightful questions about the topic rquired for understanding details', model_config, self),
-            'expert1': Actor('Expert 1', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config, self),
-            'expert2': Actor('Expert 2', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config, self),
-            'validator': Actor('Validator', 'critical thinker who validates questions and answers', model_config, self)
+
+        # Define default actors
+        default_actors = {
+            'questioner': ('Questioner', 'curious individual who asks insightful questions about the topic required for understanding details'),
+            'expert1': ('Expert 1', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'),
+            'expert2': ('Expert 2', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers'),
+            'validator': ('Validator', 'critical thinker who validates questions and answers')
         }
+
+        # Initialize actors based on configuration
+        self.actors = {}
+        if custom_actors is None:
+            # Use all default actors
+            for key, (name, desc) in default_actors.items():
+                self.actors[key] = Actor(name, desc, model_config, self)
+        else:
+            # Use only enabled actors
+            for key, (name, desc) in default_actors.items():
+                if custom_actors.get(key, True):  # Enable by default if not specified
+                    self.actors[key] = Actor(name, desc, model_config, self)
 
     def add_to_history(self, actor: str, message: str):
         """

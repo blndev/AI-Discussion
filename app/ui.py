@@ -59,7 +59,14 @@ class GradioUI(App):
         self.discussion.start_discussion(topic, callback=self.message_callback)
         self.is_running = False
 
-    def start_new_discussion(self, topic: str, max_rounds: int, history: List[Dict[str, str]]) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button, bool], None, None]:
+    def start_new_discussion(
+        self, topic: str, max_rounds: int, history: List[Dict[str, str]],
+        custom_enabled: bool = False,
+        questioner: bool = True,
+        expert1: bool = True,
+        expert2: bool = True,
+        validator: bool = True
+    ) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button, bool], None, None]:
         """
         Starts a new discussion on the given topic.
         
@@ -76,8 +83,21 @@ class GradioUI(App):
             yield [{"role": "system", "content": "Please enter a topic for discussion."}], gr.Button(interactive=True), gr.Button(interactive=False), True
             return
 
-        # Initialize discussion with user-selected max_rounds
-        self.discussion = AIDiscussion(max_rounds=max_rounds, model_config=self.model_config)
+        # Initialize discussion with user-selected configuration
+        custom_actors = None
+        if custom_enabled:
+            custom_actors = {
+                'questioner': questioner,
+                'expert1': expert1,
+                'expert2': expert2,
+                'validator': validator
+            }
+        
+        self.discussion = AIDiscussion(
+            max_rounds=max_rounds,
+            model_config=self.model_config,
+            custom_actors=custom_actors
+        )
         
         self.is_running = True
         self.current_history = []
@@ -130,20 +150,41 @@ class GradioUI(App):
         """Launches the Gradio interface."""
         logger.info("Launching Gradio interface")
         with gr.Blocks(title="AI Discussion Panel", theme=gr.themes.Soft()) as interface:
-            gr.Markdown("""
-            # AI Discussion Panel
-            Enter a topic and press Enter or click Start Discussion to begin an AI-powered conversation.
-            """)
+            gr.Markdown("# AI Discussion Panel")
             
-            with gr.Row():
-                max_rounds_slider = gr.Slider(
-                    minimum=5,
-                    maximum=100,
-                    value=20,
-                    step=5,
-                    label="Discussion Length",
-                    info="Adjust the number of discussion rounds (5-100)"
-                )
+            with gr.Tabs():
+                with gr.Tab("Discussion"):
+                    gr.Markdown("Enter a topic and press Enter or click Start Discussion to begin an AI-powered conversation.")
+                    
+                    with gr.Row():
+                        max_rounds_slider = gr.Slider(
+                            minimum=5,
+                            maximum=100,
+                            value=20,
+                            step=5,
+                            label="Discussion Length",
+                            info="Adjust the number of discussion rounds (5-100)"
+                        )
+                
+                with gr.Tab("Custom Actors"):
+                    with gr.Row():
+                        custom_actors_enabled = gr.Checkbox(
+                            label="Enable Custom Actors",
+                            value=False,
+                            info="Enable to customize which actors participate in the discussion"
+                        )
+                    
+                    with gr.Column(visible=False) as actor_options:
+                        questioner_enabled = gr.Checkbox(label="Questioner", value=True)
+                        expert1_enabled = gr.Checkbox(label="Expert 1", value=True)
+                        expert2_enabled = gr.Checkbox(label="Expert 2", value=True)
+                        validator_enabled = gr.Checkbox(label="Validator", value=True)
+                    
+                    custom_actors_enabled.change(
+                        lambda x: gr.Column(visible=x),
+                        inputs=[custom_actors_enabled],
+                        outputs=[actor_options]
+                    )
             
             chatbot = gr.Chatbot(
                 label="Discussion",
@@ -154,7 +195,7 @@ class GradioUI(App):
             
             with gr.Row():
                 topic_input = gr.Textbox(
-                    show_label=False,
+                    label="",
                     placeholder="Type a topic for discussion...",
                     scale=4
                 )
@@ -162,17 +203,26 @@ class GradioUI(App):
                 stop_btn = gr.Button("Stop Discussion", scale=1, variant="stop", interactive=False)
 
             # Submit on Enter key or button click
+            # Submit on Enter key or button click
+            inputs = [
+                topic_input, max_rounds_slider, chatbot,
+                custom_actors_enabled,
+                questioner_enabled, expert1_enabled,
+                expert2_enabled, validator_enabled
+            ]
+            outputs = [chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)]
+
             topic_input.submit(
                 self.start_new_discussion,
-                inputs=[topic_input, max_rounds_slider, chatbot],
-                outputs=[chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)],
+                inputs=inputs,
+                outputs=outputs,
                 show_progress=True
             )
 
             submit_btn.click(
                 self.start_new_discussion,
-                inputs=[topic_input, max_rounds_slider, chatbot],
-                outputs=[chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)],
+                inputs=inputs,
+                outputs=outputs,
                 show_progress=True
             )
 
