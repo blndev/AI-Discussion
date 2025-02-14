@@ -254,11 +254,12 @@ class AIDiscussion:
             # oder actors können sich selbst aussuchen
 
             #Besserer moderator prompt: fasse letzte nachricht zusammen: war es eine frage, eine ausssage, eine vermutung --> dann select actor aufrufen
-
+            
+            #BUG: the last task seems never to be executed
             # Get response from the chosen actor
             style_note = "Provide a brief, focused response." if is_brief else "Feel free to provide detailed explanations."
             if next_actor == 'questioner':
-                prompt = f"Ask a relevant question about: {topic}. {style_note}"
+                prompt = f"Ask a relevant question about the last discussion. {style_note}"
             elif next_actor in ['expert1', 'expert2']:
                 if is_last_round:
                     prompt = f"Provide a final summary or key insights about {topic}. {style_note}"
@@ -268,7 +269,7 @@ class AIDiscussion:
                 if is_last_round:
                     prompt = f"Give a final assessment of the discussion's completeness and accuracy. {style_note}"
                 else:
-                    prompt = f"Validate the recent questions and answers about {topic}. Are they relevant and accurate? {style_note}"
+                    prompt = f"Validate the recent questions and answers. Are they relevant and accurate? {style_note}"
             
             response = self.actors[next_actor].respond(prompt)
             logger.debug(f"Got response from {next_actor} ({len(response)} chars)")
