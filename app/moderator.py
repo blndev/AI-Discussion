@@ -1,34 +1,10 @@
 import json
 import logging
+import random
 from typing import Dict, Tuple, Literal
-from langchain.tools import tool
 from .actor import Actor
 
 logger = logging.getLogger(__name__)
-
-class ModeratorTools:
-    """Tools for the moderator to manage the discussion."""
-    
-    def __init__(self):
-        logger.info("Moderator initialized")
-
-    @tool("prepare_next_actor")
-    def prepare_next_actor(
-        actor: str,
-        reason: str
-    ) -> str:
-        """
-        Prepare the choosen next actor and check that the actor is ready.
-        
-        Args:
-            actor: The next actor to speak (questioner/expert1/expert2/validator/done)
-            reason: Brief explanation for why this actor was chosen and what they should focus on
-            
-        Returns:
-            The selected actor's identifier if he is ready to continue
-        """
-        logger.debug(f"Prepare next Actor: {actor}. Reason: {reason}")
-        return {"actor": actor, "reason": reason, "status": "ready"}
 
 class Moderator(Actor):
     """
@@ -36,8 +12,6 @@ class Moderator(Actor):
     """
     def __init__(self, model_config: dict, discussion=None):
         super().__init__('Moderator', 'discussion leader who manages the conversation flow', model_config, discussion)
-        self.tools = ModeratorTools()
-        self.llm = self.llm.bind_tools([self.tools.prepare_next_actor])
         self.previous_actor = ""
 
     def get_actor_descriptions(self) -> str:
@@ -71,10 +45,7 @@ class Moderator(Actor):
         prompt = f"""
         Based on the discussion so far about '{topic}', you need to:
         1. Choose who should speak next from the actors list below, or select "done" if no more discussion is required. Choose always a new actor for the list.
-        2. Provide a clear reason for your choice and what they should focus on in form of a order or question to the selected actor. Always mention the actor-name.
-        3. Prepare the selected actor 
-
-        if the discussion is not going to start, provide a thesis about the topic.
+        2. Provide a clear reason for your choice and what they should focus on.
 
         Select one of the following Actors except {self.previous_actor}:
         {actor_descriptions}
@@ -83,32 +54,40 @@ class Moderator(Actor):
         {last_round_guide}
 
         Do not choose the last actor again.
-        Use the prepare_next_actor tool to propagate and explain your selection.
+        Respond in JSON format with two fields:
+        {{
+            "actor": "selected_actor_id",
+            "reason": "explanation for choice and focus"
+        }}
         """
         
         try:
-            mod_response = self.llm.invoke(prompt)
-            next_actor = ""
-            reason = ""
+            response = self.llm.invoke(prompt)
+            
+            try:
+                result = json.loads(response.content)
+                next_actor = result.get("actor", "")
+                reason = result.get("reason", "")
 
-            for tool_call in mod_response.tool_calls:
-                selected_tool = {
-                    "prepare_next_actor": self.tools.prepare_next_actor, 
-                    "other_tool": self.tools.prepare_next_actor
-                }[tool_call["name"].lower()]
-                tool_msg = json.loads(selected_tool.invoke(tool_call).content)
-                logger.debug("Tool was executed and result is", tool_msg)
+                if not next_actor or not reason:
+                    raise ValueError("Missing actor or reason in response")
                 
-                next_actor = tool_msg["actor"]
-                reason = tool_msg["reason"]
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse LLM response: {e}")
+                # Get available actors excluding previous actor and 'done'
+                available_actors = [
+                    actor_id for actor_id in self.discussion.actors.keys() 
+                    if actor_id != self.previous_actor and actor_id != "done"
+                ]
+                if not available_actors:
+                    return "done", "No available actors. Ending discussion."
+                
+                # Randomly select an actor as fallback
+                next_actor = random.choice(available_actors)
+                reason = f"Fallback selection due to response parsing error. Continuing discussion with {next_actor}."
 
             # Save for next round
             self.previous_actor = next_actor
-
-            if not next_actor or not reason:
-                logger.warning("Missing actor or reason in tool response")
-                return "done", "Unable to determine next action. Ending discussion."
-
             return next_actor, reason
 
         except Exception as e:

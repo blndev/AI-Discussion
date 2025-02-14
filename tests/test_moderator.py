@@ -1,26 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 import json
-from app.moderator import Moderator, ModeratorTools
-
-class TestModeratorTools(unittest.TestCase):
-    """Test cases for the ModeratorTools class."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        self.tools = ModeratorTools()
-
-    def test_prepare_next_actor_returns_valid_response(self):
-        """Test that prepare_next_actor returns correctly formatted response."""
-        result = self.tools.prepare_next_actor(
-            actor="expert1",
-            reason="Test reason"
-        )
-        
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["actor"], "expert1")
-        self.assertEqual(result["reason"], "Test reason")
-        self.assertEqual(result["status"], "ready")
+from app.moderator import Moderator
 
 class TestModerator(unittest.TestCase):
     """Test cases for the Moderator class."""
@@ -41,6 +22,76 @@ class TestModerator(unittest.TestCase):
             'questioner': Mock(name="Questioner", role="test questioner role")
         }
         
+    def test_get_next_actor_success(self):
+        """Test successful actor selection."""
+        with patch('app.actor.ChatOllama') as mock_chat_ollama:
+            # Setup mock LLM response
+            mock_response = MagicMock()
+            mock_response.content = json.dumps({
+                "actor": "expert1",
+                "reason": "Need expert insight"
+            })
+            mock_llm = MagicMock()
+            mock_llm.invoke = MagicMock(return_value=mock_response)
+            mock_chat_ollama.return_value = mock_llm
+            
+            # Create moderator with mocked LLM
+            moderator = Moderator(self.model_config, self.mock_discussion)
+            
+            next_actor, reason = moderator.get_next_actor(
+                topic="test topic",
+                is_last_round=False,
+                is_brief=True
+            )
+        
+        self.assertEqual(next_actor, "expert1")
+        self.assertEqual(reason, "Need expert insight")
+        self.assertEqual(moderator.previous_actor, "expert1")
+
+    def test_get_next_actor_handles_non_json_response(self):
+        """Test handling of non-JSON LLM response with fallback to random actor."""
+        with patch('app.actor.ChatOllama') as mock_chat_ollama:
+            # Setup mock LLM with non-JSON response
+            mock_response = MagicMock()
+            mock_response.content = "Not a JSON response"
+            mock_llm = MagicMock()
+            mock_llm.invoke = MagicMock(return_value=mock_response)
+            mock_chat_ollama.return_value = mock_llm
+            
+            # Create moderator with mocked LLM
+            moderator = Moderator(self.model_config, self.mock_discussion)
+            
+            next_actor, reason = moderator.get_next_actor(
+                topic="test topic",
+                is_last_round=False,
+                is_brief=True
+            )
+        
+        # Verify that an actor was selected and it's not the previous actor
+        self.assertIn(next_actor, ["expert1", "questioner"])
+        self.assertIn("Fallback selection", reason)
+        self.assertEqual(next_actor, moderator.previous_actor)
+
+    def test_get_next_actor_handles_error(self):
+        """Test handling of LLM error."""
+        with patch('app.actor.ChatOllama') as mock_chat_ollama:
+            # Setup mock LLM that raises an error
+            mock_llm = MagicMock()
+            mock_llm.invoke = MagicMock(side_effect=Exception("LLM error"))
+            mock_chat_ollama.return_value = mock_llm
+            
+            # Create moderator with mocked LLM
+            moderator = Moderator(self.model_config, self.mock_discussion)
+            
+            next_actor, reason = moderator.get_next_actor(
+                topic="test topic",
+                is_last_round=False,
+                is_brief=True
+            )
+        
+        self.assertEqual(next_actor, "done")
+        self.assertIn("An error occurred", reason)
+
     def test_get_actor_descriptions(self):
         """Test that get_actor_descriptions formats actor info correctly."""
         with patch('app.actor.ChatOllama'):
@@ -95,5 +146,3 @@ class TestModerator(unittest.TestCase):
         self.assertIn("Validate the recent questions and answers", prompt)
         self.assertIn("brief, focused response", prompt)
 
-if __name__ == '__main__':
-    unittest.main()
