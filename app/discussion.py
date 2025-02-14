@@ -92,7 +92,7 @@ class AIDiscussion:
                 break
 
             # Show the reason to users
-            if callback:
+            if callback and False: #currently deactivate the moderator output
                 callback(f'Moderator to {self.actors[next_actor].name if next_actor != "done" else "all"}', reason)
             logger.info(f"Moderator has choosen {next_actor}: {reason}")
             
@@ -102,9 +102,9 @@ class AIDiscussion:
                     callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
                 break
 
-            # Get response from the chosen actor
-            prompt = self.moderator.get_actor_prompt(next_actor, topic, is_last_round, is_brief)
-            response = self.actors[next_actor].respond(prompt)
+            # Use moderator's reason as the actor's initial prompt
+            self.actors[next_actor].initial_prompt = reason
+            response = self.actors[next_actor].respond(topic)
             logger.debug(f"Got response from {next_actor} ({len(response)} chars)")
             if callback:
                 callback(self.actors[next_actor].name, response)

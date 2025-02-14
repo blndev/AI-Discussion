@@ -104,45 +104,6 @@ class TestModerator(unittest.TestCase):
         self.assertIn("Questioner", descriptions)
         self.assertIn("test questioner role", descriptions)
 
-    def test_get_actor_prompt_questioner(self):
-        """Test prompt generation for questioner."""
-        with patch('app.actor.ChatOllama'):
-            moderator = Moderator(self.model_config, self.mock_discussion)
-            prompt = moderator.get_actor_prompt(
-            actor="questioner",
-            topic="test topic",
-            is_last_round=False,
-            is_brief=True
-        )
-        
-        self.assertIn("Ask a relevant question", prompt)
-        self.assertIn("brief, focused response", prompt)
 
-    def test_get_actor_prompt_expert_last_round(self):
-        """Test prompt generation for expert in last round."""
-        with patch('app.actor.ChatOllama'):
-            moderator = Moderator(self.model_config, self.mock_discussion)
-            prompt = moderator.get_actor_prompt(
-            actor="expert1",
-            topic="test topic",
-            is_last_round=True,
-            is_brief=False
-        )
-        
-        self.assertIn("final summary", prompt)
-        self.assertIn("detailed explanations", prompt)
-
-    def test_get_actor_prompt_validator(self):
-        """Test prompt generation for validator."""
-        with patch('app.actor.ChatOllama'):
-            moderator = Moderator(self.model_config, self.mock_discussion)
-            prompt = moderator.get_actor_prompt(
-            actor="validator",
-            topic="test topic",
-            is_last_round=False,
-            is_brief=True
-        )
-        
-        self.assertIn("Validate the recent questions and answers", prompt)
-        self.assertIn("brief, focused response", prompt)
-
+if __name__ == '__main__':
+    unittest.main()

@@ -31,7 +31,7 @@ class Moderator(Actor):
             is_brief (bool): Whether this is a brief discussion
             
         Returns:
-            Tuple[str, str]: The next actor and the reason for selection
+            Tuple[str, str]: The next actor ID and the reason/prompt for that actor
         """
         style_guide = "Keep responses concise and focused on key points." if is_brief else "Allow for detailed exploration and comprehensive answers."
         last_round_guide = """
@@ -93,31 +93,3 @@ class Moderator(Actor):
         except Exception as e:
             logger.error(f"Error in moderator decision: {e}")
             return "done", "An error occurred. Ending discussion."
-
-    def get_actor_prompt(self, actor: str, topic: str, is_last_round: bool, is_brief: bool) -> str:
-        """
-        Generates a prompt for the specified actor.
-        
-        Args:
-            actor (str): The actor to generate a prompt for
-            topic (str): The discussion topic
-            is_last_round (bool): Whether this is the last round
-            is_brief (bool): Whether this is a brief discussion
-            
-        Returns:
-            str: The formatted prompt for the actor
-        """
-        style_note = "Provide a brief, focused response." if is_brief else "Feel free to provide detailed explanations."
-        
-        if actor == 'questioner':
-            return f"Ask a relevant question about the last discussion. {style_note}"
-        elif actor in ['expert1', 'expert2']:
-            if is_last_round:
-                return f"Provide a final summary or key insights about {topic}. {style_note}"
-            return f"Provide your expert insight on the latest question or point raised about {topic}. {style_note}"
-        elif actor == 'validator':
-            if is_last_round:
-                return f"Give a final assessment of the discussion's completeness and accuracy. {style_note}"
-            return f"Validate the recent questions and answers. Are they relevant and accurate? {style_note}"
-        
-        return ""

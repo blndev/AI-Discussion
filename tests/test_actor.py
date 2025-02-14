@@ -21,14 +21,15 @@ class TestActor(unittest.TestCase):
             {"actor": "Expert 1", "message": "Previous response"}
         ]
 
-    def test_actor_initialization(self):
-        """Test actor initialization with correct parameters."""
+    def test_actor_initialization_with_initial_prompt(self):
+        """Test actor initialization with initial prompt."""
         with patch('app.actor.ChatOllama') as mock_chat_ollama:
-            actor = Actor("Test Actor", "test role", self.model_config, self.mock_discussion)
+            actor = Actor("Test Actor", "test role", self.model_config, self.mock_discussion, "Initial test prompt")
             
             self.assertEqual(actor.name, "Test Actor")
             self.assertEqual(actor.role, "test role")
             self.assertEqual(actor.discussion, self.mock_discussion)
+            self.assertEqual(actor.initial_prompt, "Initial test prompt")
             
             # Verify ChatOllama was initialized with correct parameters
             mock_chat_ollama.assert_called_once_with(
@@ -55,14 +56,30 @@ class TestActor(unittest.TestCase):
         self.assertEqual(context[0]["message"], "Message 5")
         self.assertEqual(context[-1]["message"], "Message 9")
 
-    def test_get_prompt_format(self):
-        """Test that get_prompt returns correctly formatted prompt."""
+    def test_get_prompt_with_initial_prompt(self):
+        """Test that get_prompt includes initial prompt when provided."""
         with patch('app.actor.ChatOllama') as mock_chat_ollama:
             # Create actor with mocked discussion
+            actor = Actor("Test Actor", "test role", self.model_config, self.mock_discussion, "Initial test prompt")
+            prompt = actor.get_prompt("Test message")
+        
+        # Verify prompt contains initial prompt and other components
+        self.assertIn("Initial test prompt", prompt)
+        self.assertIn("You are Test Actor", prompt)
+        self.assertIn("test role", prompt)
+        self.assertIn("Previous context", prompt)
+        self.assertIn("Starting discussion", prompt)  # From mock history
+        self.assertIn("Previous response", prompt)    # From mock history
+        self.assertIn("Test message", prompt)
+
+    def test_get_prompt_without_initial_prompt(self):
+        """Test that get_prompt uses default prompt when initial_prompt is None."""
+        with patch('app.actor.ChatOllama') as mock_chat_ollama:
             actor = Actor("Test Actor", "test role", self.model_config, self.mock_discussion)
             prompt = actor.get_prompt("Test message")
         
-        # Verify prompt contains all required components
+        # Verify prompt contains default prompt and other components
+        self.assertIn("Respond based on the context and your role", prompt)
         self.assertIn("You are Test Actor", prompt)
         self.assertIn("test role", prompt)
         self.assertIn("Previous context", prompt)
