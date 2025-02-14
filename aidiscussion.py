@@ -42,15 +42,28 @@ class Actor:
         role (str): The role description of the actor
         model_config (dict): Configuration for the LLM model
     """
-    def __init__(self, name: str, role: str, model_config: dict):
+    def __init__(self, name: str, role: str, model_config: dict, discussion=None):
+        """
+        Initialize an actor.
+        
+        Args:
+            name (str): The name of the actor
+            role (str): The role description of the actor
+            model_config (dict): Configuration for the LLM model
+            discussion: The discussion this actor is part of
+        """
         self.name = name
         self.role = role
+        self.discussion = discussion
         self.llm = ChatOllama(
             model=model_config["model"],
             temperature=model_config["model_params"]["temperature"],
             top_p=model_config["model_params"]["top_p"]
         )
-        self.context = []
+
+    def get_context(self) -> List[Dict]:
+        """Gets the current discussion context from the discussion history."""
+        return self.discussion.discussion_history[-5:] if self.discussion else []
 
     def get_prompt(self, message: str) -> str:
         """
@@ -62,7 +75,7 @@ class Actor:
         Returns:
             str: The formatted prompt including context and role information
         """
-        context_str = "\n".join([f"{msg['actor']}: {msg['message']}" for msg in self.context[-5:]])
+        context_str = "\n".join([f"{msg['actor']}: {msg['message']}" for msg in self.get_context()])
         return f"""You are {self.name}, a {self.role}. 
 Previous context:
 {context_str}
@@ -83,24 +96,22 @@ Respond in character as {self.name}, the {self.role}."""
         """
         prompt = self.get_prompt(message)
         response = self.llm.invoke(prompt)
-        self.context.append({"actor": self.role, "message": response.content})
         return response.content
 
 class Moderator(Actor):
     """
     Specialized actor that manages the discussion flow.
     """
-    def __init__(self, model_config: dict, actors: Dict[str, Actor]):
-        super().__init__('Moderator', 'discussion leader who manages the conversation flow', model_config)
+    def __init__(self, model_config: dict, discussion=None):
+        super().__init__('Moderator', 'discussion leader who manages the conversation flow', model_config, discussion)
         self.tools = ModeratorTools()
         self.llm = self.llm.bind_tools([self.tools.prepare_next_actor])
-        self.actors = actors
         self.previous_actor = ""
 
     def get_actor_descriptions(self) -> str:
         """Gets formatted descriptions of all available actors."""
         descriptions = ""
-        for actor_id, actor in self.actors.items():
+        for actor_id, actor in self.discussion.actors.items():
             descriptions += f"\t\t\t- Actor \"{actor_id}\" with the Name \"{actor.name}\" is {actor.role} \n"
         return descriptions
 
@@ -216,15 +227,17 @@ class AIDiscussion:
         """
         logger.info(f"Initializing AI Discussion with max_rounds={max_rounds}")
         self.stop_flag = False
-        self.actors = {
-            'questioner': Actor('Questioner', 'curious individual who asks insightful questions about the topic rquired for understanding details', model_config),
-            'expert1': Actor('Expert 1', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config),
-            'expert2': Actor('Expert 2', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config),
-            'validator': Actor('Validator', 'critical thinker who validates questions and answers', model_config)
-        }
-        self.moderator = Moderator(model_config, self.actors)
         self.discussion_history = []
         self.max_rounds = max_rounds
+
+        # Initialize actors with discussion reference
+        self.moderator = Moderator(model_config, self)
+        self.actors = {
+            'questioner': Actor('Questioner', 'curious individual who asks insightful questions about the topic rquired for understanding details', model_config, self),
+            'expert1': Actor('Expert 1', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config, self),
+            'expert2': Actor('Expert 2', 'knowledgeable expert who provides detailed insights, answers questions and validates other experts answers', model_config, self),
+            'validator': Actor('Validator', 'critical thinker who validates questions and answers', model_config, self)
+        }
 
     def add_to_history(self, actor: str, message: str):
         """
@@ -240,10 +253,6 @@ class AIDiscussion:
             'timestamp': time.strftime('%H:%M:%S')
         }
         self.discussion_history.append(entry)
-        # Update context for all actors
-        for actor in self.actors.values():
-            actor.context = self.discussion_history
-        self.moderator.context = self.discussion_history
 
     def stop_discussion(self):
         """Stops the current discussion."""
@@ -280,15 +289,8 @@ class AIDiscussion:
             # Get moderator's decision
             next_actor, reason = self.moderator.get_next_actor(topic, is_last_round, is_brief)
             
-            
-            if next_actor == "done":
-                logger.info("Moderator decided to end discussion")
-                if callback:
-                    callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
-                break
-
             # Validate actor exists
-            if next_actor not in self.actors:
+            if next_actor not in self.actors and next_actor != "done":
                 logger.warning(f"Invalid actor selected: {next_actor}")
                 if callback:
                     callback('Moderator', "Invalid selection made. Ending discussion.")
@@ -296,9 +298,14 @@ class AIDiscussion:
 
             # Show the reason to users
             if callback:
-                callback(f'Moderator to {self.actors[next_actor].name}', reason)
+                callback(f'Moderator to {self.actors[next_actor].name if next_actor != "done" else "all"}', reason)
             logger.info(f"Moderator has choosen {next_actor}: {reason}")
-
+            
+            if next_actor == "done":
+                logger.info("Moderator decided to end discussion")
+                if callback:
+                    callback('Moderator', "Discussion complete. Topic has been thoroughly covered.")
+                break
 
             # Get response from the chosen actor
             prompt = self.moderator.get_actor_prompt(next_actor, topic, is_last_round, is_brief)
