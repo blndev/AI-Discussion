@@ -4,6 +4,7 @@ import threading
 import queue
 import time
 import logging
+import json
 from .discussion import AIDiscussion
 from .app import App
 
@@ -223,101 +224,72 @@ class GradioUI(App):
 
                         # Container for actor components
                         with gr.Column() as actors_container:
-                            actor_rows = []
-                            for i in range(4):  # Initial rows
-                                with gr.Row() as row:
-                                    enabled = gr.Checkbox(
-                                        label="", 
-                                        value=True,
-                                        scale=1
-                                    )
-                                    name = gr.Textbox(
-                                        label="Name",
-                                        value="",
-                                        scale=2
-                                    )
-                                    role = gr.Textbox(
-                                        label="Role",
-                                        value="",
-                                        scale=4
-                                    )
-                                    remove_btn = gr.Button("🗑️", scale=1)
-                                    actor_rows.append((enabled, name, role, remove_btn, row))
-
-                            add_btn = gr.Button("➕ Add Actor", scale=1)
-
-                        def update_actor_rows(actors):
-                            """Update all actor rows with current state."""
-                            updates = []
-                            for i, actor in enumerate(actors):
-                                if i < len(actor_rows):
-                                    updates.extend([
-                                        gr.update(value=actor["enabled"]),
-                                        gr.update(value=actor["name"]),
-                                        gr.update(value=actor["role"]),
-                                        gr.update(),  # Remove button
-                                        gr.update(visible=True)  # Row
-                                    ])
-                            # Hide unused rows
-                            for i in range(len(actors), len(actor_rows)):
-                                updates.extend([
-                                    gr.update(),  # Checkbox
-                                    gr.update(),  # Name
-                                    gr.update(),  # Role
-                                    gr.update(),  # Remove button
-                                    gr.update(visible=False)  # Row
-                                ])
-                            return updates
-
-                        def add_actor(actors):
-                            """Add a new actor."""
-                            actors.append({
-                                "enabled": True,
-                                "name": f"Actor {len(actors) + 1}",
-                                "role": "Define the role for this actor"
-                            })
-                            return [actors] + update_actor_rows(actors)
-
-                        def remove_actor(actors, idx):
-                            """Remove an actor."""
-                            actors.pop(idx)
-                            return [actors] + update_actor_rows(actors)
-
-                        # Wire up event handlers
-                        add_btn.click(
-                            add_actor,
-                            inputs=[actors_state],
-                            outputs=[actors_state] + [item for row in actor_rows for item in row]
-                        )
-
-                        for i, (enabled, name, role, remove_btn, _) in enumerate(actor_rows):
-                            remove_btn.click(
-                                lambda a, idx=i: remove_actor(a, idx),
-                                inputs=[actors_state],
-                                outputs=[actors_state] + [item for row in actor_rows for item in row]
+                            actors_json = gr.TextArea(
+                                label="Actor Configuration (JSON)",
+                                value="""[
+    {
+        "enabled": true,
+        "name": "Questioner",
+        "role": "curious individual who asks insightful questions about the topic"
+    },
+    {
+        "enabled": true,
+        "name": "Expert 1",
+        "role": "knowledgeable expert who provides detailed insights and answers"
+    },
+    {
+        "enabled": true,
+        "name": "Expert 2",
+        "role": "knowledgeable expert who provides detailed insights and answers"
+    },
+    {
+        "enabled": true,
+        "name": "Validator",
+        "role": "critical thinker who validates questions and answers"
+    }
+]""",
+                                lines=20
                             )
-                            enabled.change(
-                                lambda v, a, idx=i: [dict(a[j], enabled=v if j == idx else a[j]["enabled"]) for j in range(len(a))],
-                                inputs=[enabled, actors_state],
-                                outputs=[actors_state]
-                            )
-                            name.change(
-                                lambda v, a, idx=i: [dict(a[j], name=v if j == idx else a[j]["name"]) for j in range(len(a))],
-                                inputs=[name, actors_state],
-                                outputs=[actors_state]
-                            )
-                            role.change(
-                                lambda v, a, idx=i: [dict(a[j], role=v if j == idx else a[j]["role"]) for j in range(len(a))],
-                                inputs=[role, actors_state],
-                                outputs=[actors_state]
+                            
+                            with gr.Row():
+                                apply_btn = gr.Button("Apply Changes", variant="primary")
+                                format_btn = gr.Button("Format JSON")
+
+                            def format_json(text):
+                                """Format JSON text for better readability."""
+                                try:
+                                    data = json.loads(text)
+                                    return json.dumps(data, indent=4)
+                                except:
+                                    return text
+
+                            def apply_changes(text):
+                                """Apply JSON changes to actors state."""
+                                try:
+                                    actors = json.loads(text)
+                                    # Validate actor structure
+                                    for actor in actors:
+                                        if not all(k in actor for k in ["enabled", "name", "role"]):
+                                            raise ValueError("Each actor must have 'enabled', 'name', and 'role' fields")
+                                    return actors, gr.Info("Changes applied successfully")
+                                except json.JSONDecodeError as e:
+                                    return None, gr.Error(f"Invalid JSON: {str(e)}")
+                                except ValueError as e:
+                                    return None, gr.Error(str(e))
+                                except Exception as e:
+                                    return None, gr.Error(f"Error: {str(e)}")
+
+                            format_btn.click(
+                                format_json,
+                                inputs=[actors_json],
+                                outputs=[actors_json]
                             )
 
-                        # Initial state setup
-                        actors_state.change(
-                            update_actor_rows,
-                            inputs=[actors_state],
-                            outputs=[item for row in actor_rows for item in row]
-                        )
+                            apply_btn.click(
+                                apply_changes,
+                                inputs=[actors_json],
+                                outputs=[actors_state, actors_json]
+                            )
                     
                     def update_actors_visibility(enabled: bool):
                         """Update actor options visibility."""
@@ -325,8 +297,11 @@ class GradioUI(App):
                         
                     def save_config(filename, actors_data):
                         """Save the current actor configuration."""
-                        config = {f"actor_{i}": actor for i, actor in enumerate(actors_data)}
+                        if actors_data is None:
+                            return gr.Error("No valid actor configuration to save")
                         try:
+                            # Convert list to dictionary format
+                            config = {f"actor_{i}": actor for i, actor in enumerate(actors_data)}
                             filepath = f"config/{filename}"
                             AIDiscussion.save_actor_config(config, filepath)
                             return gr.Info("Configuration saved successfully")
@@ -340,35 +315,31 @@ class GradioUI(App):
                             config = AIDiscussion.load_actor_config(filepath)
                             # Convert dictionary back to list
                             actors = [actor for _, actor in sorted(config.items())]
+                            # Validate actor structure
+                            for actor in actors:
+                                if not all(k in actor for k in ["enabled", "name", "role"]):
+                                    raise ValueError("Invalid configuration: Each actor must have 'enabled', 'name', and 'role' fields")
                             return [
                                 actors,
+                                json.dumps(actors, indent=4),
                                 gr.Info("Configuration loaded successfully")
                             ]
-                        except Exception as e:
-                            default_actors = [
-                                {
-                                    "enabled": True,
-                                    "name": "Questioner",
-                                    "role": "curious individual who asks insightful questions about the topic"
-                                },
-                                {
-                                    "enabled": True,
-                                    "name": "Expert 1",
-                                    "role": "knowledgeable expert who provides detailed insights and answers"
-                                },
-                                {
-                                    "enabled": True,
-                                    "name": "Expert 2",
-                                    "role": "knowledgeable expert who provides detailed insights and answers"
-                                },
-                                {
-                                    "enabled": True,
-                                    "name": "Validator",
-                                    "role": "critical thinker who validates questions and answers"
-                                }
-                            ]
+                        except FileNotFoundError:
                             return [
-                                default_actors,
+                                actors_state.value,  # Keep current state
+                                json.dumps(actors_state.value, indent=4),
+                                gr.Error(f"Configuration file not found: {filename}")
+                            ]
+                        except json.JSONDecodeError as e:
+                            return [
+                                actors_state.value,  # Keep current state
+                                json.dumps(actors_state.value, indent=4),
+                                gr.Error(f"Invalid JSON in configuration file: {str(e)}")
+                            ]
+                        except Exception as e:
+                            return [
+                                actors_state.value,  # Keep current state
+                                json.dumps(actors_state.value, indent=4),
                                 gr.Error(f"Failed to load configuration: {str(e)}")
                             ]
 
@@ -384,14 +355,28 @@ class GradioUI(App):
                     # Save button click handler
                     save_btn.click(
                         save_config,
-                        inputs=[config_file, actors_state]
+                        inputs=[config_file, actors_state],
+                        outputs=[gr.Text(visible=False)]  # For notifications
                     )
                     
                     # Load button click handler
                     load_btn.click(
                         load_config,
                         inputs=[config_file],
-                        outputs=[actors_state]
+                        outputs=[actors_state, actors_json, gr.Text(visible=False)]  # For notifications
+                    )
+
+                    # Update JSON when tab is selected
+                    def on_tab_select(actors):
+                        """Update JSON when tab is selected."""
+                        if actors is None:
+                            actors = json.loads(actors_json.value)
+                        return json.dumps(actors, indent=4)
+
+                    actors_tab.select(
+                        on_tab_select,
+                        inputs=[actors_state],
+                        outputs=[actors_json]
                     )
 
 
