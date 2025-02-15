@@ -226,51 +226,74 @@ class GradioUI(App):
                         with gr.Column() as actors_container:
                             actors_json = gr.TextArea(
                                 label="Actor Configuration (JSON)",
-                                value="""[
-    {
+                                value="""{
+    "questioner": {
         "enabled": true,
         "name": "Questioner",
         "role": "curious individual who asks insightful questions about the topic"
     },
-    {
+    "expert1": {
         "enabled": true,
         "name": "Expert 1",
         "role": "knowledgeable expert who provides detailed insights and answers"
     },
-    {
+    "expert2": {
         "enabled": true,
         "name": "Expert 2",
         "role": "knowledgeable expert who provides detailed insights and answers"
     },
-    {
+    "validator": {
         "enabled": true,
         "name": "Validator",
         "role": "critical thinker who validates questions and answers"
     }
-]""",
+}""",
                                 lines=20
                             )
                             
                             with gr.Row():
                                 apply_btn = gr.Button("Apply Changes", variant="primary")
-                                format_btn = gr.Button("Format JSON")
+                                validate_btn = gr.Button("Validate JSON")
+                            
+                            validation_error = gr.Textbox(
+                                label="Validation Status",
+                                interactive=False,
+                                visible=True,
+                                value="",
+                                lines=2
+                            )
 
-                            def format_json(text):
-                                """Format JSON text for better readability."""
+                            def validate_json(text):
+                                """Validate JSON structure and format."""
                                 try:
                                     data = json.loads(text)
-                                    return json.dumps(data, indent=4)
-                                except:
-                                    return text
+                                    # Validate actor structure
+                                    for actor_id, actor in data.items():
+                                        if not isinstance(actor, dict):
+                                            raise ValueError(f"Actor '{actor_id}' must be an object")
+                                        if not all(k in actor for k in ["enabled", "name", "role"]):
+                                            raise ValueError(f"Actor '{actor_id}' must have 'enabled', 'name', and 'role' fields")
+                                    formatted = json.dumps(data, indent=4)
+                                    return formatted, "✅ JSON is valid"
+                                except json.JSONDecodeError as e:
+                                    return text, f"❌ Invalid JSON: {str(e)}"
+                                except ValueError as e:
+                                    return text, f"❌ {str(e)}"
+                                except Exception as e:
+                                    return text, f"❌ Error: {str(e)}"
 
                             def apply_changes(text):
                                 """Apply JSON changes to actors state."""
                                 try:
-                                    actors = json.loads(text)
+                                    config = json.loads(text)
                                     # Validate actor structure
-                                    for actor in actors:
+                                    for actor_id, actor in config.items():
+                                        if not isinstance(actor, dict):
+                                            raise ValueError(f"Actor '{actor_id}' must be an object")
                                         if not all(k in actor for k in ["enabled", "name", "role"]):
-                                            raise ValueError("Each actor must have 'enabled', 'name', and 'role' fields")
+                                            raise ValueError(f"Actor '{actor_id}' must have 'enabled', 'name', and 'role' fields")
+                                    # Convert to list format for state
+                                    actors = [actor for _, actor in sorted(config.items())]
                                     return actors, gr.Info("Changes applied successfully")
                                 except json.JSONDecodeError as e:
                                     return None, gr.Error(f"Invalid JSON: {str(e)}")
@@ -279,16 +302,16 @@ class GradioUI(App):
                                 except Exception as e:
                                     return None, gr.Error(f"Error: {str(e)}")
 
-                            format_btn.click(
-                                format_json,
+                            validate_btn.click(
+                                validate_json,
                                 inputs=[actors_json],
-                                outputs=[actors_json]
+                                outputs=[actors_json, validation_error]
                             )
 
                             apply_btn.click(
                                 apply_changes,
                                 inputs=[actors_json],
-                                outputs=[actors_state, actors_json]
+                                outputs=[actors_state, gr.Text(visible=False)]  # For notifications
                             )
                     
                     def update_actors_visibility(enabled: bool):
@@ -300,8 +323,16 @@ class GradioUI(App):
                         if actors_data is None:
                             return gr.Error("No valid actor configuration to save")
                         try:
-                            # Convert list to dictionary format
-                            config = {f"actor_{i}": actor for i, actor in enumerate(actors_data)}
+                            # Convert list to dictionary format with proper IDs
+                            config = {}
+                            for i, actor in enumerate(actors_data):
+                                if i == 0:
+                                    actor_id = "questioner"
+                                elif i <= 2:
+                                    actor_id = f"expert{i}"
+                                else:
+                                    actor_id = "validator"
+                                config[actor_id] = actor
                             filepath = f"config/{filename}"
                             AIDiscussion.save_actor_config(config, filepath)
                             return gr.Info("Configuration saved successfully")
@@ -321,25 +352,25 @@ class GradioUI(App):
                                     raise ValueError("Invalid configuration: Each actor must have 'enabled', 'name', and 'role' fields")
                             return [
                                 actors,
-                                json.dumps(actors, indent=4),
+                                json.dumps(config, indent=4),  # Keep dictionary format in JSON
                                 gr.Info("Configuration loaded successfully")
                             ]
                         except FileNotFoundError:
                             return [
                                 actors_state.value,  # Keep current state
-                                json.dumps(actors_state.value, indent=4),
+                                actors_json.value,  # Keep current JSON
                                 gr.Error(f"Configuration file not found: {filename}")
                             ]
                         except json.JSONDecodeError as e:
                             return [
                                 actors_state.value,  # Keep current state
-                                json.dumps(actors_state.value, indent=4),
+                                actors_json.value,  # Keep current JSON
                                 gr.Error(f"Invalid JSON in configuration file: {str(e)}")
                             ]
                         except Exception as e:
                             return [
                                 actors_state.value,  # Keep current state
-                                json.dumps(actors_state.value, indent=4),
+                                actors_json.value,  # Keep current JSON
                                 gr.Error(f"Failed to load configuration: {str(e)}")
                             ]
 
@@ -365,20 +396,6 @@ class GradioUI(App):
                         inputs=[config_file],
                         outputs=[actors_state, actors_json, gr.Text(visible=False)]  # For notifications
                     )
-
-                    # Update JSON when tab is selected
-                    def on_tab_select(actors):
-                        """Update JSON when tab is selected."""
-                        if actors is None:
-                            actors = json.loads(actors_json.value)
-                        return json.dumps(actors, indent=4)
-
-                    actors_tab.select(
-                        on_tab_select,
-                        inputs=[actors_state],
-                        outputs=[actors_json]
-                    )
-
 
             # Submit on Enter key or button click
             inputs = [
