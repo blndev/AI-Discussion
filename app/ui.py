@@ -222,74 +222,102 @@ class GradioUI(App):
                         ])
 
                         # Container for actor components
-                        actors_container = gr.Column()
-                        
-                        def render_actor_row(actor, index):
-                            """Render a single actor row."""
-                            with gr.Row():
-                                enabled = gr.Checkbox(
-                                    label="", 
-                                    value=actor["enabled"],
-                                    scale=1
-                                )
-                                name = gr.Textbox(
-                                    label="Name",
-                                    value=actor["name"],
-                                    scale=2
-                                )
-                                role = gr.Textbox(
-                                    label="Role",
-                                    value=actor["role"],
-                                    scale=4
-                                )
-                                remove_btn = gr.Button("🗑️", scale=1)
-                                
-                                def update_actor_field(field, value, actors, idx):
-                                    actors[idx][field] = value
-                                    return actors
-                                
-                                enabled.change(
-                                    lambda v, a, i=index: update_actor_field("enabled", v, a, i),
-                                    inputs=[enabled, actors_state],
-                                    outputs=[actors_state]
-                                )
-                                name.change(
-                                    lambda v, a, i=index: update_actor_field("name", v, a, i),
-                                    inputs=[name, actors_state],
-                                    outputs=[actors_state]
-                                )
-                                role.change(
-                                    lambda v, a, i=index: update_actor_field("role", v, a, i),
-                                    inputs=[role, actors_state],
-                                    outputs=[actors_state]
-                                )
-                                
-                                remove_btn.click(
-                                    lambda a, i=index: [x for j, x in enumerate(a) if j != i],
-                                    inputs=[actors_state],
-                                    outputs=[actors_state]
-                                )
-                        
-                        with actors_container:
-                            for i, actor in enumerate(actors_state.value):
-                                render_actor_row(actor, i)
+                        with gr.Column() as actors_container:
+                            actor_rows = []
+                            for i in range(4):  # Initial rows
+                                with gr.Row() as row:
+                                    enabled = gr.Checkbox(
+                                        label="", 
+                                        value=True,
+                                        scale=1
+                                    )
+                                    name = gr.Textbox(
+                                        label="Name",
+                                        value="",
+                                        scale=2
+                                    )
+                                    role = gr.Textbox(
+                                        label="Role",
+                                        value="",
+                                        scale=4
+                                    )
+                                    remove_btn = gr.Button("🗑️", scale=1)
+                                    actor_rows.append((enabled, name, role, remove_btn, row))
 
-                        with gr.Row():
                             add_btn = gr.Button("➕ Add Actor", scale=1)
-                            
-                            def add_actor(actors):
-                                actors.append({
-                                    "enabled": True,
-                                    "name": f"Actor {len(actors) + 1}",
-                                    "role": "Define the role for this actor"
-                                })
-                                return actors
-                            
-                            add_btn.click(
-                                add_actor,
+
+                        def update_actor_rows(actors):
+                            """Update all actor rows with current state."""
+                            updates = []
+                            for i, actor in enumerate(actors):
+                                if i < len(actor_rows):
+                                    updates.extend([
+                                        gr.update(value=actor["enabled"]),
+                                        gr.update(value=actor["name"]),
+                                        gr.update(value=actor["role"]),
+                                        gr.update(),  # Remove button
+                                        gr.update(visible=True)  # Row
+                                    ])
+                            # Hide unused rows
+                            for i in range(len(actors), len(actor_rows)):
+                                updates.extend([
+                                    gr.update(),  # Checkbox
+                                    gr.update(),  # Name
+                                    gr.update(),  # Role
+                                    gr.update(),  # Remove button
+                                    gr.update(visible=False)  # Row
+                                ])
+                            return updates
+
+                        def add_actor(actors):
+                            """Add a new actor."""
+                            actors.append({
+                                "enabled": True,
+                                "name": f"Actor {len(actors) + 1}",
+                                "role": "Define the role for this actor"
+                            })
+                            return [actors] + update_actor_rows(actors)
+
+                        def remove_actor(actors, idx):
+                            """Remove an actor."""
+                            actors.pop(idx)
+                            return [actors] + update_actor_rows(actors)
+
+                        # Wire up event handlers
+                        add_btn.click(
+                            add_actor,
+                            inputs=[actors_state],
+                            outputs=[actors_state] + [item for row in actor_rows for item in row]
+                        )
+
+                        for i, (enabled, name, role, remove_btn, _) in enumerate(actor_rows):
+                            remove_btn.click(
+                                lambda a, idx=i: remove_actor(a, idx),
                                 inputs=[actors_state],
+                                outputs=[actors_state] + [item for row in actor_rows for item in row]
+                            )
+                            enabled.change(
+                                lambda v, a, idx=i: [dict(a[j], enabled=v if j == idx else a[j]["enabled"]) for j in range(len(a))],
+                                inputs=[enabled, actors_state],
                                 outputs=[actors_state]
                             )
+                            name.change(
+                                lambda v, a, idx=i: [dict(a[j], name=v if j == idx else a[j]["name"]) for j in range(len(a))],
+                                inputs=[name, actors_state],
+                                outputs=[actors_state]
+                            )
+                            role.change(
+                                lambda v, a, idx=i: [dict(a[j], role=v if j == idx else a[j]["role"]) for j in range(len(a))],
+                                inputs=[role, actors_state],
+                                outputs=[actors_state]
+                            )
+
+                        # Initial state setup
+                        actors_state.change(
+                            update_actor_rows,
+                            inputs=[actors_state],
+                            outputs=[item for row in actor_rows for item in row]
+                        )
                     
                     def update_actors_visibility(enabled: bool):
                         """Update actor options visibility."""
@@ -366,20 +394,6 @@ class GradioUI(App):
                         outputs=[actors_state]
                     )
 
-                    # Re-render actors when state changes
-                    def update_actors_ui(actors):
-                        """Re-render the actors UI when the list changes."""
-                        with actors_container:
-                            gr.Column.update()
-                            for i, actor in enumerate(actors):
-                                render_actor_row(actor, i)
-                        return gr.Column(visible=True)
-                    
-                    actors_state.change(
-                        update_actors_ui,
-                        inputs=[actors_state],
-                        outputs=[actors_container]
-                    )
 
             # Submit on Enter key or button click
             inputs = [
