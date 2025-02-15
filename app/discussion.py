@@ -1,5 +1,7 @@
 import logging
 import time
+import json
+import os
 from typing import Dict, Callable
 from .actor import Actor
 from .moderator import Moderator
@@ -7,6 +9,33 @@ from .moderator import Moderator
 logger = logging.getLogger(__name__)
 
 class AIDiscussion:
+    @staticmethod
+    def save_actor_config(config: Dict[str, Dict[str, str]], filepath: str) -> None:
+        """
+        Save actor configuration to a JSON file.
+        
+        Args:
+            config (Dict[str, Dict[str, str]]): Actor configuration dictionary
+            filepath (str): Path to save the JSON file
+        """
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'w') as f:
+            json.dump(config, f, indent=4)
+    
+    @staticmethod
+    def load_actor_config(filepath: str) -> Dict[str, Dict[str, str]]:
+        """
+        Load actor configuration from a JSON file.
+        
+        Args:
+            filepath (str): Path to the JSON file
+            
+        Returns:
+            Dict[str, Dict[str, str]]: Actor configuration dictionary
+        """
+        with open(filepath, 'r') as f:
+            return json.load(f)
+            
     """
     Manages an AI-driven discussion between multiple actors.
     """

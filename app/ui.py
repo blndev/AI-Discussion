@@ -204,11 +204,16 @@ class GradioUI(App):
                 actors_tab = gr.Tab("Custom Actors")
                 with actors_tab:
                     with gr.Row():
-                        custom_actors_enabled = gr.Checkbox(
-                            label="Enable Custom Actors",
-                            value=False,
-                            info="Enable to customize which actors participate in the discussion"
-                        )
+                        with gr.Column(scale=3):
+                            custom_actors_enabled = gr.Checkbox(
+                                label="Enable Custom Actors",
+                                value=False,
+                                info="Enable to customize which actors participate in the discussion"
+                            )
+                        with gr.Column(scale=1):
+                            with gr.Row():
+                                save_btn = gr.Button("💾 Save Config", scale=1)
+                                load_btn = gr.Button("📂 Load Config", scale=1)
                     
                     with gr.Column(visible=False) as actor_options:
                         with gr.Row():
@@ -254,6 +259,69 @@ class GradioUI(App):
                     def update_actors_visibility(enabled: bool):
                         """Update actor options visibility."""
                         return gr.Column(visible=enabled)
+                        
+                    def save_config(
+                        questioner_enabled, questioner_name, questioner_role,
+                        expert1_enabled, expert1_name, expert1_role,
+                        expert2_enabled, expert2_name, expert2_role,
+                        validator_enabled, validator_name, validator_role
+                    ):
+                        """Save the current actor configuration."""
+                        config = {
+                            'questioner': {
+                                'enabled': questioner_enabled,
+                                'name': questioner_name,
+                                'role': questioner_role
+                            },
+                            'expert1': {
+                                'enabled': expert1_enabled,
+                                'name': expert1_name,
+                                'role': expert1_role
+                            },
+                            'expert2': {
+                                'enabled': expert2_enabled,
+                                'name': expert2_name,
+                                'role': expert2_role
+                            },
+                            'validator': {
+                                'enabled': validator_enabled,
+                                'name': validator_name,
+                                'role': validator_role
+                            }
+                        }
+                        try:
+                            AIDiscussion.save_actor_config(config, "config/actor_config.json")
+                            return gr.Info("Configuration saved successfully")
+                        except Exception as e:
+                            return gr.Error(f"Failed to save configuration: {str(e)}")
+                            
+                    def load_config():
+                        """Load actor configuration from file."""
+                        try:
+                            config = AIDiscussion.load_actor_config("config/actor_config.json")
+                            return [
+                                config['questioner']['enabled'],
+                                config['questioner']['name'],
+                                config['questioner']['role'],
+                                config['expert1']['enabled'],
+                                config['expert1']['name'],
+                                config['expert1']['role'],
+                                config['expert2']['enabled'],
+                                config['expert2']['name'],
+                                config['expert2']['role'],
+                                config['validator']['enabled'],
+                                config['validator']['name'],
+                                config['validator']['role'],
+                                gr.Info("Configuration loaded successfully")
+                            ]
+                        except Exception as e:
+                            return [
+                                True, "Questioner", "curious individual who asks insightful questions about the topic",
+                                True, "Expert 1", "knowledgeable expert who provides detailed insights and answers",
+                                True, "Expert 2", "knowledgeable expert who provides detailed insights and answers",
+                                True, "Validator", "critical thinker who validates questions and answers",
+                                gr.Error(f"Failed to load configuration: {str(e)}")
+                            ]
 
                     custom_actors_enabled.change(
                         update_actors_visibility,
@@ -262,6 +330,28 @@ class GradioUI(App):
                     ).then(
                         lambda: 0,  # Switch to Discussion tab (index 0)
                         outputs=tabs
+                    )
+                    
+                    # Save button click handler
+                    save_btn.click(
+                        save_config,
+                        inputs=[
+                            questioner_enabled, questioner_name, questioner_role,
+                            expert1_enabled, expert1_name, expert1_role,
+                            expert2_enabled, expert2_name, expert2_role,
+                            validator_enabled, validator_name, validator_role
+                        ]
+                    )
+                    
+                    # Load button click handler
+                    load_btn.click(
+                        load_config,
+                        outputs=[
+                            questioner_enabled, questioner_name, questioner_role,
+                            expert1_enabled, expert1_name, expert1_role,
+                            expert2_enabled, expert2_name, expert2_role,
+                            validator_enabled, validator_name, validator_role
+                        ]
                     )
 
             # Submit on Enter key or button click
