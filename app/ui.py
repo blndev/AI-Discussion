@@ -210,10 +210,16 @@ class GradioUI(App):
                                 value=False,
                                 info="Enable to customize which actors participate in the discussion"
                             )
-                        with gr.Column(scale=1):
+                        with gr.Column(scale=2):
                             with gr.Row():
-                                save_btn = gr.Button("💾 Save Config", scale=1)
-                                load_btn = gr.Button("📂 Load Config", scale=1)
+                                config_file = gr.Textbox(
+                                    label="Config Filename",
+                                    value="actor_config.json",
+                                    scale=2,
+                                    info="Specify the filename to save/load (will be stored in config/ directory)"
+                                )
+                                save_btn = gr.Button("💾 Save", scale=1)
+                                load_btn = gr.Button("📂 Load", scale=1)
                     
                     with gr.Column(visible=False) as actor_options:
                         with gr.Row():
@@ -261,6 +267,7 @@ class GradioUI(App):
                         return gr.Column(visible=enabled)
                         
                     def save_config(
+                        filename,
                         questioner_enabled, questioner_name, questioner_role,
                         expert1_enabled, expert1_name, expert1_role,
                         expert2_enabled, expert2_name, expert2_role,
@@ -290,15 +297,17 @@ class GradioUI(App):
                             }
                         }
                         try:
-                            AIDiscussion.save_actor_config(config, "config/actor_config.json")
+                            filepath = f"config/{filename}"
+                            AIDiscussion.save_actor_config(config, filepath)
                             return gr.Info("Configuration saved successfully")
                         except Exception as e:
                             return gr.Error(f"Failed to save configuration: {str(e)}")
                             
-                    def load_config():
+                    def load_config(filename):
                         """Load actor configuration from file."""
                         try:
-                            config = AIDiscussion.load_actor_config("config/actor_config.json")
+                            filepath = f"config/{filename}"
+                            config = AIDiscussion.load_actor_config(filepath)
                             return [
                                 config['questioner']['enabled'],
                                 config['questioner']['name'],
@@ -336,6 +345,7 @@ class GradioUI(App):
                     save_btn.click(
                         save_config,
                         inputs=[
+                            config_file,
                             questioner_enabled, questioner_name, questioner_role,
                             expert1_enabled, expert1_name, expert1_role,
                             expert2_enabled, expert2_name, expert2_role,
@@ -346,6 +356,7 @@ class GradioUI(App):
                     # Load button click handler
                     load_btn.click(
                         load_config,
+                        inputs=[config_file],
                         outputs=[
                             questioner_enabled, questioner_name, questioner_role,
                             expert1_enabled, expert1_name, expert1_role,
