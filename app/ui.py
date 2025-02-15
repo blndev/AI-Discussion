@@ -61,11 +61,7 @@ class GradioUI(App):
 
     def start_new_discussion(
         self, topic: str, max_rounds: int, history: List[Dict[str, str]],
-        custom_enabled: bool = False,
-        questioner_enabled: bool = True, questioner_name: str = "Questioner", questioner_role: str = "",
-        expert1_enabled: bool = True, expert1_name: str = "Expert 1", expert1_role: str = "",
-        expert2_enabled: bool = True, expert2_name: str = "Expert 2", expert2_role: str = "",
-        validator_enabled: bool = True, validator_name: str = "Validator", validator_role: str = ""
+        custom_enabled: bool = False, actors: List[Dict[str, any]] = None
     ) -> Generator[Tuple[List[Dict[str, str]], gr.Button, gr.Button, bool], None, None]:
         """
         Starts a new discussion on the given topic.
@@ -85,29 +81,8 @@ class GradioUI(App):
 
         # Initialize discussion with user-selected configuration
         custom_actors = None
-        if custom_enabled:
-            custom_actors = {
-                'questioner': {
-                    'enabled': questioner_enabled,
-                    'name': questioner_name,
-                    'role': questioner_role
-                },
-                'expert1': {
-                    'enabled': expert1_enabled,
-                    'name': expert1_name,
-                    'role': expert1_role
-                },
-                'expert2': {
-                    'enabled': expert2_enabled,
-                    'name': expert2_name,
-                    'role': expert2_role
-                },
-                'validator': {
-                    'enabled': validator_enabled,
-                    'name': validator_name,
-                    'role': validator_role
-                }
-            }
+        if custom_enabled and actors:
+            custom_actors = {f"actor_{i}": actor for i, actor in enumerate(actors)}
         
         self.discussion = AIDiscussion(
             max_rounds=max_rounds,
@@ -222,80 +197,107 @@ class GradioUI(App):
                                 load_btn = gr.Button("📂 Load", scale=1)
                     
                     with gr.Column(visible=False) as actor_options:
-                        with gr.Row():
-                            questioner_enabled = gr.Checkbox(label="Questioner", value=True)
-                            questioner_name = gr.Textbox(label="Name", value="Questioner", interactive=True)
-                            questioner_role = gr.Textbox(
-                                label="Role",
-                                value="curious individual who asks insightful questions about the topic",
-                                interactive=True,
-                                scale=2
-                            )
+                        # Store actors data in State
+                        actors_state = gr.State([
+                            {
+                                "enabled": True,
+                                "name": "Questioner",
+                                "role": "curious individual who asks insightful questions about the topic"
+                            },
+                            {
+                                "enabled": True,
+                                "name": "Expert 1",
+                                "role": "knowledgeable expert who provides detailed insights and answers"
+                            },
+                            {
+                                "enabled": True,
+                                "name": "Expert 2",
+                                "role": "knowledgeable expert who provides detailed insights and answers"
+                            },
+                            {
+                                "enabled": True,
+                                "name": "Validator",
+                                "role": "critical thinker who validates questions and answers"
+                            }
+                        ])
+
+                        # Container for actor components
+                        actors_container = gr.Column()
                         
-                        with gr.Row():
-                            expert1_enabled = gr.Checkbox(label="Expert 1", value=True)
-                            expert1_name = gr.Textbox(label="Name", value="Expert 1", interactive=True)
-                            expert1_role = gr.Textbox(
-                                label="Role",
-                                value="knowledgeable expert who provides detailed insights and answers",
-                                interactive=True,
-                                scale=2
-                            )
+                        def render_actor_row(actor, index):
+                            """Render a single actor row."""
+                            with gr.Row():
+                                enabled = gr.Checkbox(
+                                    label="", 
+                                    value=actor["enabled"],
+                                    scale=1
+                                )
+                                name = gr.Textbox(
+                                    label="Name",
+                                    value=actor["name"],
+                                    scale=2
+                                )
+                                role = gr.Textbox(
+                                    label="Role",
+                                    value=actor["role"],
+                                    scale=4
+                                )
+                                remove_btn = gr.Button("🗑️", scale=1)
+                                
+                                def update_actor_field(field, value, actors, idx):
+                                    actors[idx][field] = value
+                                    return actors
+                                
+                                enabled.change(
+                                    lambda v, a, i=index: update_actor_field("enabled", v, a, i),
+                                    inputs=[enabled, actors_state],
+                                    outputs=[actors_state]
+                                )
+                                name.change(
+                                    lambda v, a, i=index: update_actor_field("name", v, a, i),
+                                    inputs=[name, actors_state],
+                                    outputs=[actors_state]
+                                )
+                                role.change(
+                                    lambda v, a, i=index: update_actor_field("role", v, a, i),
+                                    inputs=[role, actors_state],
+                                    outputs=[actors_state]
+                                )
+                                
+                                remove_btn.click(
+                                    lambda a, i=index: [x for j, x in enumerate(a) if j != i],
+                                    inputs=[actors_state],
+                                    outputs=[actors_state]
+                                )
                         
+                        with actors_container:
+                            for i, actor in enumerate(actors_state.value):
+                                render_actor_row(actor, i)
+
                         with gr.Row():
-                            expert2_enabled = gr.Checkbox(label="Expert 2", value=True)
-                            expert2_name = gr.Textbox(label="Name", value="Expert 2", interactive=True)
-                            expert2_role = gr.Textbox(
-                                label="Role",
-                                value="knowledgeable expert who provides detailed insights and answers",
-                                interactive=True,
-                                scale=2
-                            )
-                        
-                        with gr.Row():
-                            validator_enabled = gr.Checkbox(label="Validator", value=True)
-                            validator_name = gr.Textbox(label="Name", value="Validator", interactive=True)
-                            validator_role = gr.Textbox(
-                                label="Role",
-                                value="critical thinker who validates questions and answers",
-                                interactive=True,
-                                scale=2
+                            add_btn = gr.Button("➕ Add Actor", scale=1)
+                            
+                            def add_actor(actors):
+                                actors.append({
+                                    "enabled": True,
+                                    "name": f"Actor {len(actors) + 1}",
+                                    "role": "Define the role for this actor"
+                                })
+                                return actors
+                            
+                            add_btn.click(
+                                add_actor,
+                                inputs=[actors_state],
+                                outputs=[actors_state]
                             )
                     
                     def update_actors_visibility(enabled: bool):
                         """Update actor options visibility."""
                         return gr.Column(visible=enabled)
                         
-                    def save_config(
-                        filename,
-                        questioner_enabled, questioner_name, questioner_role,
-                        expert1_enabled, expert1_name, expert1_role,
-                        expert2_enabled, expert2_name, expert2_role,
-                        validator_enabled, validator_name, validator_role
-                    ):
+                    def save_config(filename, actors_data):
                         """Save the current actor configuration."""
-                        config = {
-                            'questioner': {
-                                'enabled': questioner_enabled,
-                                'name': questioner_name,
-                                'role': questioner_role
-                            },
-                            'expert1': {
-                                'enabled': expert1_enabled,
-                                'name': expert1_name,
-                                'role': expert1_role
-                            },
-                            'expert2': {
-                                'enabled': expert2_enabled,
-                                'name': expert2_name,
-                                'role': expert2_role
-                            },
-                            'validator': {
-                                'enabled': validator_enabled,
-                                'name': validator_name,
-                                'role': validator_role
-                            }
-                        }
+                        config = {f"actor_{i}": actor for i, actor in enumerate(actors_data)}
                         try:
                             filepath = f"config/{filename}"
                             AIDiscussion.save_actor_config(config, filepath)
@@ -308,27 +310,37 @@ class GradioUI(App):
                         try:
                             filepath = f"config/{filename}"
                             config = AIDiscussion.load_actor_config(filepath)
+                            # Convert dictionary back to list
+                            actors = [actor for _, actor in sorted(config.items())]
                             return [
-                                config['questioner']['enabled'],
-                                config['questioner']['name'],
-                                config['questioner']['role'],
-                                config['expert1']['enabled'],
-                                config['expert1']['name'],
-                                config['expert1']['role'],
-                                config['expert2']['enabled'],
-                                config['expert2']['name'],
-                                config['expert2']['role'],
-                                config['validator']['enabled'],
-                                config['validator']['name'],
-                                config['validator']['role'],
+                                actors,
                                 gr.Info("Configuration loaded successfully")
                             ]
                         except Exception as e:
+                            default_actors = [
+                                {
+                                    "enabled": True,
+                                    "name": "Questioner",
+                                    "role": "curious individual who asks insightful questions about the topic"
+                                },
+                                {
+                                    "enabled": True,
+                                    "name": "Expert 1",
+                                    "role": "knowledgeable expert who provides detailed insights and answers"
+                                },
+                                {
+                                    "enabled": True,
+                                    "name": "Expert 2",
+                                    "role": "knowledgeable expert who provides detailed insights and answers"
+                                },
+                                {
+                                    "enabled": True,
+                                    "name": "Validator",
+                                    "role": "critical thinker who validates questions and answers"
+                                }
+                            ]
                             return [
-                                True, "Questioner", "curious individual who asks insightful questions about the topic",
-                                True, "Expert 1", "knowledgeable expert who provides detailed insights and answers",
-                                True, "Expert 2", "knowledgeable expert who provides detailed insights and answers",
-                                True, "Validator", "critical thinker who validates questions and answers",
+                                default_actors,
                                 gr.Error(f"Failed to load configuration: {str(e)}")
                             ]
 
@@ -344,35 +356,35 @@ class GradioUI(App):
                     # Save button click handler
                     save_btn.click(
                         save_config,
-                        inputs=[
-                            config_file,
-                            questioner_enabled, questioner_name, questioner_role,
-                            expert1_enabled, expert1_name, expert1_role,
-                            expert2_enabled, expert2_name, expert2_role,
-                            validator_enabled, validator_name, validator_role
-                        ]
+                        inputs=[config_file, actors_state]
                     )
                     
                     # Load button click handler
                     load_btn.click(
                         load_config,
                         inputs=[config_file],
-                        outputs=[
-                            questioner_enabled, questioner_name, questioner_role,
-                            expert1_enabled, expert1_name, expert1_role,
-                            expert2_enabled, expert2_name, expert2_role,
-                            validator_enabled, validator_name, validator_role
-                        ]
+                        outputs=[actors_state]
+                    )
+
+                    # Re-render actors when state changes
+                    def update_actors_ui(actors):
+                        """Re-render the actors UI when the list changes."""
+                        with actors_container:
+                            gr.Column.update()
+                            for i, actor in enumerate(actors):
+                                render_actor_row(actor, i)
+                        return gr.Column(visible=True)
+                    
+                    actors_state.change(
+                        update_actors_ui,
+                        inputs=[actors_state],
+                        outputs=[actors_container]
                     )
 
             # Submit on Enter key or button click
             inputs = [
                 topic_input, max_rounds_slider, chatbot,
-                custom_actors_enabled,
-                questioner_enabled, questioner_name, questioner_role,
-                expert1_enabled, expert1_name, expert1_role,
-                expert2_enabled, expert2_name, expert2_role,
-                validator_enabled, validator_name, validator_role
+                custom_actors_enabled, actors_state
             ]
             outputs = [chatbot, submit_btn, stop_btn, gr.Checkbox(visible=False)]
 
