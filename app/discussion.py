@@ -8,6 +8,7 @@ from .moderator import Moderator
 
 logger = logging.getLogger(__name__)
 
+#TODO V2: introduce a translator who alwass just translate the given answer into prefered language of teh user. maybe it must use a different model then
 class AIDiscussion:
     @staticmethod
     def save_actor_config(config: Dict[str, Dict[str, str]], filepath: str) -> None:
