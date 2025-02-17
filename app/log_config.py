@@ -1,11 +1,15 @@
 import logging
 import colorlog
 
-def setup_logging():
-    """Configure colored logging for the entire application."""
+def setup_logging(debug: bool = False):
+    """Configure colored logging for the entire application.
+    
+    Args:
+        debug (bool): If True, sets log level to DEBUG. Otherwise, uses INFO level.
+    """
     # Create root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
     # Remove any existing handlers
     for handler in root_logger.handlers:

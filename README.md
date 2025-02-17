@@ -46,6 +46,12 @@ This will:
 ```bash
 ./start.sh
 ```
+
+For debug logging:
+```bash
+python main.py --debug
+```
+
 3. The Gradio interface will open in your default web browser
 4. Enter a topic and click "Start Discussion"
 5. Watch the AI-powered discussion unfold in real-time

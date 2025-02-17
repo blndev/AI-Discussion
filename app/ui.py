@@ -224,6 +224,14 @@ class GradioUI(App):
 
                         # Container for actor components
                         with gr.Column() as actors_container:
+                            validation_error = gr.Textbox(
+                                label="Validation Status",
+                                interactive=False,
+                                visible=True,
+                                value="",
+                                lines=2
+                            )
+
                             actors_json = gr.TextArea(
                                 label="Actor Configuration (JSON)",
                                 value="""{
@@ -254,14 +262,6 @@ class GradioUI(App):
                             with gr.Row():
                                 apply_btn = gr.Button("Apply Changes", variant="primary")
                                 validate_btn = gr.Button("Validate JSON")
-                            
-                            validation_error = gr.Textbox(
-                                label="Validation Status",
-                                interactive=False,
-                                visible=True,
-                                value="",
-                                lines=2
-                            )
 
                             def validate_json(text):
                                 """Validate JSON structure and format."""
@@ -378,9 +378,6 @@ class GradioUI(App):
                         update_actors_visibility,
                         inputs=[custom_actors_enabled],
                         outputs=[actor_options]
-                    ).then(
-                        lambda: 0,  # Switch to Discussion tab (index 0)
-                        outputs=tabs
                     )
                     
                     # Save button click handler

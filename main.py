@@ -1,10 +1,18 @@
 import logging
 import json
+import argparse
 from app.ui import GradioUI
 from app.log_config import setup_logging
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='AI Discussion Application')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    return parser.parse_args()
+
 # Set up logging for the entire application
-setup_logging()
+args = parse_args()
+setup_logging(debug=args.debug)
 logger = logging.getLogger(__name__)
 
 def load_config() -> dict:
